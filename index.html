@@ -1,0 +1,2895 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cronograma de Recebimento — Centros de Distribuição</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root {
+    color-scheme: light;
+    --surface-1: #fcfcfb;
+    --page: #f9f9f7;
+    --text-primary: #0b0b0b;
+    --text-secondary: #52514e;
+    --text-muted: #898781;
+    --gridline: #e1e0d9;
+    --border: rgba(11,11,11,0.10);
+    --good: #0ca30c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --surface-1: #1a1a19;
+      --page: #0d0d0d;
+      --text-primary: #ffffff;
+      --text-secondary: #c3c2b7;
+      --text-muted: #898781;
+      --gridline: #2c2c2a;
+      --border: rgba(255,255,255,0.10);
+      --good: #0ca30c;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    background: var(--page);
+    color: var(--text-primary);
+    padding: 24px;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; }
+  header.page-head { margin-bottom: 20px; }
+  header.page-head h1 { font-size: 22px; margin: 0 0 4px; }
+  header.page-head p { margin: 0; color: var(--text-secondary); font-size: 13.5px; }
+  .overview {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+    margin: 18px 0 24px;
+  }
+  @media (min-width: 620px) { .overview { grid-template-columns: repeat(2, 1fr); } }
+  .overview-tile {
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+  }
+  .overview-tile .kpi-label { display:block; font-size: 12px; color: var(--text-secondary); margin-bottom: 4px; }
+  .overview-tile .kpi-value { font-size: 22px; font-weight: 600; }
+  .confirm-toolbar {
+    display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between;
+    background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px;
+    padding: 12px 16px; margin-bottom: 20px;
+  }
+  .confirm-toolbar-text { font-size: 13px; color: var(--text-secondary); max-width: 480px; }
+  .confirm-toolbar-text strong { color: var(--text-primary); }
+  .confirm-toolbar-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  #nome-responsavel {
+    font: inherit; font-size: 13px; padding: 7px 10px; border-radius: 8px;
+    border: 1px solid var(--border); background: var(--page); color: var(--text-primary);
+  }
+  #btn-baixar {
+    font: inherit; font-size: 13px; font-weight: 600; padding: 8px 14px; border-radius: 8px;
+    border: none; background: var(--series-1, #2a78d6); color: #fff; cursor: pointer;
+    display: inline-flex; align-items: center; gap: 8px;
+  }
+  #btn-baixar:hover { opacity: 0.92; }
+  .pill { background: rgba(255,255,255,0.25); border-radius: 999px; padding: 1px 7px; font-size: 11.5px; }
+  .tabs { display: flex; gap: 6px; border-bottom: 1px solid var(--gridline); margin-bottom: 18px; overflow-x: auto; white-space: nowrap; }
+  .tab-btn {
+    appearance: none; border: none; background: transparent; cursor: pointer;
+    padding: 10px 16px; font-size: 14px; font-weight: 600; color: var(--text-secondary);
+    border-bottom: 3px solid transparent; margin-bottom: -1px;
+  }
+  .tab-btn.active { color: var(--text-primary); border-bottom-color: var(--accent); }
+  .kpi-row { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 20px; }
+  @media (min-width: 700px) { .kpi-row { grid-template-columns: repeat(4, 1fr); } }
+  .kpi-tile { background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; }
+  .kpi-label { display:block; font-size: 11.5px; color: var(--text-secondary); margin-bottom: 4px; }
+  .kpi-value { font-size: 18px; font-weight: 600; }
+  .kpi-confirm { border-color: rgba(12,163,12,0.35); }
+  .day-block { margin-bottom: 16px; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; background: var(--surface-1); }
+  .day-head { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-bottom: 1px solid var(--gridline); flex-wrap: wrap; gap: 6px; }
+  .day-title { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 14px; }
+  .day-kpis { font-size: 13px; color: var(--text-secondary); display:flex; gap:6px; align-items:center; }
+  .dot { color: var(--text-muted); }
+  .badge { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 999px; }
+  .badge-hoje { background: rgba(250,178,25,0.18); color: #9a6a00; }
+  .badge-futuro { background: rgba(42,120,214,0.14); color: #1c5cab; }
+  .badge-passado { background: rgba(12,163,12,0.14); color: #0a6e0a; }
+  @media (prefers-color-scheme: dark) {
+    .badge-hoje { color: #fab219; }
+    .badge-futuro { color: #3987e5; }
+    .badge-passado { color: #0ca30c; }
+  }
+  .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  table.carga-table { width: 100%; min-width: 460px; border-collapse: collapse; font-size: 13.5px; }
+  table.carga-table th { text-align: left; font-size: 11.5px; text-transform: uppercase; letter-spacing: .02em; color: var(--text-muted); padding: 8px 14px; border-bottom: 1px solid var(--gridline); }
+  table.carga-table td { padding: 8px 14px; border-bottom: 1px solid var(--gridline); vertical-align: top; }
+  table.carga-table tr:last-child td { border-bottom: none; }
+  .col-recebido { white-space: nowrap; }
+  .chk-label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; font-size: 13px; user-select: none; }
+  .chk-label input { width: 16px; height: 16px; accent-color: var(--good); cursor: pointer; }
+  .confirm-nota { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+  tr.row-confirmada { background: rgba(12,163,12,0.06); }
+  .confirm-count { font-weight: 600; }
+  .empty-state { color: var(--text-secondary); font-size: 14px; padding: 20px 4px; }
+  .avisos { margin-top: 28px; font-size: 12.5px; color: var(--text-secondary); }
+  .avisos summary { cursor: pointer; }
+  .update-box {
+    background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px;
+    padding: 20px 22px; max-width: 560px;
+  }
+  .update-box h2 { font-size: 16px; margin: 0 0 8px; }
+  .update-box > p { font-size: 13px; color: var(--text-secondary); margin: 0 0 18px; }
+  .update-field { margin-bottom: 16px; }
+  .update-field label { display: block; font-size: 12.5px; font-weight: 600; margin-bottom: 6px; }
+  .update-field input[type="file"],
+  .update-field input[type="date"] {
+    font: inherit; font-size: 13px; width: 100%; padding: 7px 10px; border-radius: 8px;
+    border: 1px solid var(--border); background: var(--page); color: var(--text-primary);
+  }
+  #btn-processar {
+    font: inherit; font-size: 13.5px; font-weight: 600; padding: 9px 16px; border-radius: 8px;
+    border: none; background: var(--good); color: #fff; cursor: pointer;
+  }
+  #btn-processar:hover { opacity: 0.92; }
+  .update-status { margin-top: 14px; font-size: 13px; min-height: 18px; }
+  .update-status.ok { color: var(--good); }
+  .update-status.error { color: #d03b3b; }
+  .update-status.info { color: var(--text-secondary); }
+  .update-note { font-size: 11.5px; color: var(--text-muted); margin: 16px 0 0; }
+  footer { margin-top: 36px; font-size: 12px; color: var(--text-muted); border-top: 1px solid var(--gridline); padding-top: 12px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="page-head">
+    <h1>Cronograma de Recebimento — Centros de Distribuição</h1>
+    <p id="page-subtitle">Gerado em 11/08/2026 às 19:20 a partir de "Compras_BD.xlsx" · Período: 01/08/2026 em diante · Depara: CD 515 = GO · CD 540 = MA · CD 547 = PA</p>
+  </header>
+
+  <div class="overview">
+    <div class="overview-tile">
+      <span class="kpi-label">Total de cargas programadas (3 CDs)</span>
+      <span class="kpi-value" id="overview-total-cargas">71</span>
+    </div>
+    <div class="overview-tile">
+      <span class="kpi-label">Confirmadas como recebidas</span>
+      <span class="kpi-value"><span id="kpi-confirm-total">0</span>/<span id="overview-total-den">71</span></span>
+    </div>
+  </div>
+
+  <div class="confirm-toolbar">
+    <div class="confirm-toolbar-text">
+      <strong>Confirmação de recebimento:</strong> marque "Recebido" nas cargas que já chegaram fisicamente no CD e baixe o arquivo para enviar de volta.
+    </div>
+    <div class="confirm-toolbar-actions">
+      <input type="text" id="nome-responsavel" placeholder="Seu nome (opcional)">
+      <button type="button" id="btn-baixar" onclick="baixarConfirmacoes()">Baixar confirmações <span id="contador-mudancas" class="pill">0</span></button>
+    </div>
+  </div>
+
+  <nav class="tabs">
+    <button class="tab-btn active" data-cd="GO" style="--accent:#2a78d6" onclick="mostrarCD('GO')">CD 515 - GO</button>
+<button class="tab-btn " data-cd="MA" style="--accent:#eb6834" onclick="mostrarCD('MA')">CD 540 - MA</button>
+<button class="tab-btn " data-cd="PA" style="--accent:#1baf7a" onclick="mostrarCD('PA')">CD 547 - PA</button>
+<button class="tab-btn tab-btn-update" data-cd="ATUALIZAR" onclick="mostrarCD('ATUALIZAR')">⟳ Atualizar dados</button>
+  </nav>
+
+  
+  <div class="cd-panel" id="panel-GO" style="display:block">
+    <div class="kpi-row">
+      <div class="kpi-tile">
+        <span class="kpi-label">Cargas programadas</span>
+        <span class="kpi-value">65</span>
+      </div>
+      <div class="kpi-tile">
+        <span class="kpi-label">Fornecedores distintos</span>
+        <span class="kpi-value">11</span>
+      </div>
+      <div class="kpi-tile">
+        <span class="kpi-label">Próxima chegada</span>
+        <span class="kpi-value">11/08/2026</span>
+      </div>
+      <div class="kpi-tile kpi-confirm" id="kpi-confirm-GO" data-total="65">
+        <span class="kpi-label">Confirmadas pelo CD</span>
+        <span class="kpi-value"><span class="kpi-confirm-num">0</span>/65</span>
+      </div>
+    </div>
+    
+    <section class="day-block status-passado">
+      <div class="day-head">
+        <div class="day-title">
+          <span class="day-date">Sábado, 01 de agosto de 2026</span>
+          <span class="badge badge-passado">Data já passada</span>
+        </div>
+        <div class="day-kpis">
+          <span class="confirm-count" data-day-total="4">0/4 confirmadas</span>
+          <span class="dot">&middot;</span>
+          <span>4 cargas</span>
+        </div>
+      </div>
+      <div class="table-scroll">
+      <table class="carga-table">
+        <thead>
+          <tr>
+            <th class="col-forn">Fornecedor</th>
+            <th class="col-carga">NF / Carga / Romaneio</th>
+            <th class="col-dpto">Departamento</th>
+            <th class="col-recebido">Recebido</th>
+          </tr>
+        </thead>
+        <tbody>
+          
+        <tr class="" data-row-id="8f4c8e70ff7c">
+          <td class="col-forn">Mondial</td>
+          <td class="col-carga">Carro 01</td>
+          <td class="col-dpto">PORTATEIS</td>
+          <td class="col-recebido">
+            <label class="chk-label">
+              <input type="checkbox" class="chk-recebido" 
+                data-id="8f4c8e70ff7c" data-initial="0"
+                data-cd="GO" data-data="2026-08-01"
+                data-forn="Mondial" data-carga="Carro 01"
+                onchange="onToggleRecebido(this)">
+              <span>Recebido</span>
+            </label>
+            
+          </td>
+        </tr>
+
+        <tr class="" data-row-id="29a3db199691">
+          <td class="col-forn">Mondial</td>
+          <td class="col-carga">Carro 02</td>
+          <td class="col-dpto">PORTATEIS</td>
+          <td class="col-recebido">
+            <label class="chk-label">
+              <input type="checkbox" class="chk-recebido" 
+                data-id="29a3db199691" data-initial="0"
+                data-cd="GO" data-data="2026-08-01"
+                data-forn="Mondial" data-carga="Carro 02"
+                onchange="onToggleRecebido(this)">
+              <span>Recebido</span>
+            </label>
+            
+          </td>
+        </tr>
+
+        <tr class="" data-row-id="dfc2115b6bfa">
+          <td class="col-forn">Moval</td>
+          <td class="col-carga">Carga 01</td>
+          <td class="col-dpto">MOVEIS</td>
+          <td class="col-recebido">
+            <label class="chk-label">
+              <input type="checkbox" class="chk-recebido" 
+                data-id="dfc2115b6bfa" data-initial="0"
+                data-cd="GO" data-data="2026-08-01"
+                data-forn="Moval" data-carga="Carga 01"
+                onchange="onToggleRecebido(this)">
+              <span>Recebido</span>
+            </label>
+            
+          </td>
+        </tr>
+
+        <tr class="" data-row-id="6c7fd7513e8f">
+          <td class="col-forn">Moval</td>
+          <td class="col-carga">Carga 02</td>
+          <td class="col-dpto">MOVEIS</td>
+          <td class="col-recebido">
+            <label class="chk-label">
+              <input type="checkbox" class="chk-recebido" 
+                data-id="6c7fd7513e8f" data-initial="0"
+                data-cd="GO" data-data="2026-08-01"
+                data-forn="Moval" data-carga="Carga 02"
+                onchange="onToggleRecebido(this)">
+              <span>Recebido</span>
+            </label>
+            
+          </td>
+        </tr>
+        </tbody>
+      </table>
+      </div>
+    </section>
+
+    <section class="day-block status-passado">
+      <div class="day-head">
+        <div class="day-title">
+          <span class="day-date">Segunda-feira, 03 de agosto de 2026</span>
+          <span class="badge badge-passado">Data já passada</span>
+        </div>
+        <div class="day-kpis">
+          <span class="confirm-count" data-day-total="5">0/5 confirmadas</span>
+          <span class="dot">&middot;</span>
+          <span>5 cargas</span>
+        </div>
+      </div>
+      <div class="table-scroll">
+      <table class="carga-table">
+        <thead>
+          <tr>
+            <th class="col-forn">Fornecedor</th>
+            <th class="col-carga">NF / Carga / Romaneio</th>
+            <th class="col-dpto">Departamento</th>
+            <th class="col-recebido">Recebido</th>
+          </tr>
+        </thead>
+        <tbody>
+          
+        <tr class="" data-row-id="b1b1171a6b9c">
+          <td class="col-forn">Artefamol</td>
+          <td class="col-carga">Carro 01</td>
+          <td class="col-dpto">MOVEIS</td>
+          <td class="col-recebido">
+            <label class="chk-label">
+              <input type="checkbox" class="chk-recebido" 
+                data-id="b1b1171a6b9c" data-initial="0"
+                data-cd="GO" data-data="2026-08-03"
+                data-forn="Artefamol" data-carga="Carro 01"
+                onchange="onToggleRecebido(this)">
+              <span>Recebido</span>
+            </label>
+            
+          </td>
+        </tr>
+
+        <tr class="" data-row-id="8d658e5df985">
+          <td class="col-forn">Atlas</td>
+          <td class="col-carga">CARRO 25</td>
+          <td class="col-dpto">BRANCA</td>
+          <td class="col-recebido">
+            <label class="chk-label">
+              <input type="checkbox" class="chk-recebido" 
+                data-id="8d658e5df985" data-initial="0"
+                data-cd="GO" data-data="2026-08-03"
+                data-forn="Atlas" data-carga="CARRO 25"
+                onchange="onToggleRecebido(this)">
+              <span>Recebido</span>
+            </label>
+            
+          </td>
+        </tr>
+
+        <tr class="" data-row-id="5f4a83381ac2">
+          <td class="col-forn">Itaitiaia</td>
+          <td class="col-carga">Carro 01</td>
+          <td class="col-dpto">MOVEIS</td>
+          <td class="col-recebido">
+            <label class="chk-label">
+              <input type="checkbox" class="chk-recebido" 
+                data-id="5f4a83381ac2" data-initial="0"
+                data-cd="GO" data-data="2026-08-03"
+                data-forn="Itaitiaia" data-carga="Carro 01"
+                onchange="onToggleRecebido(this)">
+              <span>Recebido</span>
+            </label>
+            
+          </td>
+        </tr>
+
+        <tr class="" data-row-id="2cf050bd6f25">
+          <td class="col-forn">Mondial</td>
+          <td class="col-carga">Carro 04</td>
+          <td class="col-dpto">PORTATEIS</td>
+          <td class="col-recebido">
+            <label class="chk-label">
+              <input type="checkbox" class="chk-recebido" 
+                data-id="2cf050bd6f25" data-initial="0"
+                data-cd="GO" data-data="2026-08-03"
+                data-forn="Mondial" data-carga="Carro 04"
+                onchange="onToggleRecebido(this)">
+              <span>Recebido</span>
+            </label>
+            
+          </td>
+        </tr>
+
+        <tr class="" data-row-id="5cc33c95d958">
+          <td class="col-forn">Santos Andira</td>
+          <td class="col-carga">Carga 85188</td>
+          <td class="col-dpto">MOVEIS</td>
+          <td class="col-recebido">
+            <label class="chk-label">
+              <input type="checkbox" class="chk-recebido" 
+                data-id="5cc33c95d958" data-initial="0"
+                data-cd="GO" data-data="2026-08-03"
+                data-forn="Santos Andira" data-carga="Carga 85188"
+                onchange="onToggleRecebido(this)">
+              <span>Recebido</span>
+            </label>
+            
+          </td>
+        </tr>
+        </tbody>
+      </table>
+      </div>
+    </section>
+
+    <section class="day-block status-passado">
+      <div class="day-head">
+        <div class="day-title">
+          <span class="day-date">Terça-feira, 04 de agosto de 2026</span>
+          <span class="badge badge-passado">Data já passada</span>
+        </div>
+        <div class="day-kpis">
+          <span class="confirm-count" data-day-total="3">0/3 confirmadas</span>
+          <span class="dot">&middot;</span>
+          <span>3 cargas</span>
+        </div>
+      </div>
+      <div class="table-scroll">
+      <table class="carga-table">
+        <thead>
+          <tr>
+            <th class="col-forn">Fornecedor</th>
+            <th class="col-carga">NF / Carga / Romaneio</th>
+            <th class="col-dpto">Departamento</th>
+            <th class="col-recebido">Recebido</th>
+          </tr>
+        </thead>
+        <tbody>
+          
+        <tr class="" data-row-id="78684874d9ad">
+          <td class="col-forn">Atlas</td>
+          <td class="col-carga">CARRO 26</td>
+          <td class="col-dpto">BRANCA</td>
+          <td class="col-recebido">
+            <label class="chk-label">
+              <input type="checkbox" class="chk-recebido" 
+                data-id="78684874d9ad" data-initial="0"
+                data-cd="GO" data-data="2026-08-04"
+                data-forn="Atlas" data-carga="CARRO 26"
+                onchange="onToggleRecebido(this)">
+              <span>Recebido</span>
+            </label>
+            
+          </td>
+        </tr>
+
+        <tr class="" data-row-id="3be0195b4a87">
+          <td class="col-forn">Fischer</td>
+          <td class="col-carga">Carro 01</td>
+          <td class="col-dpto">BRANCA</td>
+          <td class="col-recebido">
+            <label class="chk-label">
+              <input type="checkbox" class="chk-recebido" 
+                data-id="3be0195b4a87" data-initial="0"
+                data-cd="GO" data-data="2026-08-04"
+                data-forn="Fischer" data-carga="Carro 01"
+                onchange="onToggleRecebido(this)">
+              <span>Recebido</span>
+            </label>
+            
+          </td>
+        </tr>
+
+        <tr class="" data-row-id="e060fc09ec69">
+          <td class="col-forn">Mondial</td>
+          <td class="col-carga">Carro 05</td>
+          <td class="col-dpto">PORTATEIS</td>
+          <td class="col-recebido">
+            <label class="chk-label">
+              <input type="checkbox" class="chk-recebido" 
+                data-id="e060fc09ec69" data-initial="0"
+                data-cd="GO" data-data="2026-08-04"
+                data-forn="Mondial" data-carga="Carro 05"
+                onchange="onToggleRecebido(this)">
+              <span>Recebido</span>
+            </label>
+            
+          </td>
+        </tr>
+        </tbody>
+      </table>
+      </div>
+    </section>
+
+    <section class="day-block status-passado">
+      <div class="day-head">
+        <div class="day-title">
+          <span class="day-date">Quarta-feira, 05 de agosto de 2026</span>
+          <span class="badge badge-passado">Data já passada</span>
+        </div>
+        <div class="day-kpis">
+          <span class="confirm-count" data-day-total="2">0/2 confirmadas</span>
+          <span class="dot">&middot;</span>
+          <span>2 cargas</span>
+        </div>
+      </div>
+      <div class="table-scroll">
+      <table class="carga-table">
+        <thead>
+          <tr>
+            <th class="col-forn">Fornecedor</th>
+            <th class="col-carga">NF / Carga / Romaneio</th>
+            <th class="col-dpto">Departamento</th>
+            <th class="col-recebido">Recebido</th>
+          </tr>
+        </thead>
+        <tbody>
+          
+        <tr class="" data-row-id="fe319e49e62a">
+          <td class="col-forn">Mondial</td>
+          <td class="col-carga">Carro 06</td>
+          <td class="col-dpto">PORTATEIS</td>
+          <td class="col-recebido">
+            <label class="chk-label">
+              <input type="checkbox" class="chk-recebido" 
+                data-id="fe319e49e62a" data-initial="0"
+                data-cd="GO" data-data="2026-08-05"
+                data-forn="Mondial" data-carga="Carro 06"
+                onchange="onToggleRecebido(this)">
+              <span>Recebido</span>
+            </label>
+            
+          </td>
+        </tr>
+
+        <tr class="" data-row-id="9b2f74ab774e">
+          <td class="col-forn">Santos Andira</td>
+          <td class="col-carga">Carga 85269</td>
+          <td class="col-dpto">MOVEIS</td>
+          <td class="col-recebido">
+            <label class="chk-label">
+              <input type="checkbox" class="chk-recebido" 
+                data-id="9b2f74ab774e" data-initial="0"
+                data-cd="GO" data-data="2026-08-05"
+                data-forn="Santos Andira" data-carga="Carga 85269"
+                onchange="onToggleRecebido(this)">
+              <span>Recebido</span>
+            </label>
+            
+          </td>
+        </tr>
+        </tbody>
+      </table>
+      </div>
+    </section>
+
+    <section class="day-block status-passado">
+      <div class="day-head">
+        <div class="day-title">
+          <span class="day-date">Quinta-feira, 06 de agosto de 2026</span>
+          <span class="badge badge-passado">Data já passada</span>
+        </div>
+        <div class="day-kpis">
+          <span class="confirm-count" data-day-total="1">0/1 confirmadas</span>
+          <span class="dot">&middot;</span>
+          <span>1 carga</span>
+        </div>
+      </div>
+      <div class="table-scroll">
+      <table class="carga-table">
+        <thead>
+          <tr>
+            <th class="col-forn">Fornecedor</th>
+            <th class="col-carga">NF / Carga / Romaneio</th>
+            <th class="col-dpto">Departamento</th>
+            <th class="col-recebido">Recebido</th>
+          </tr>
+        </thead>
+        <tbody>
+          
+        <tr class="" data-row-id="3fde29b4b239">
+          <td class="col-forn">Mondial</td>
+          <td class="col-carga">Carro 07</td>
+          <td class="col-dpto">PORTATEIS</td>
+          <td class="col-recebido">
+            <label class="chk-label">
+              <input type="checkbox" class="chk-recebido" 
+                data-id="3fde29b4b239" data-initial="0"
+                data-cd="GO" data-data="2026-08-06"
+                data-forn="Mondial" data-carga="Carro 07"
+                onchange="onToggleRecebido(this)">
+              <span>Recebido</span>
+            </label>
+            
+          </td>
+        </tr>
+        </tbody>
+      </table>
+      </div>
+    </section>
+
+    <section class="day-block status-passado">
+      <div class="day-head">
+        <div class="day-title">
+          <span class="day-date">Sexta-feira, 07 de agosto de 2026</span>
+          <span class="badge badge-passado">Data já passada</span>
+        </div>
+        <div class="day-kpis">
+          <span class="confirm-count" data-day-total="3">0/3 confirmadas</span>
+          <span class="dot">&middot;</span>
+          <span>3 cargas</span>
+        </div>
+      </div>
+      <div class="table-scroll">
+      <table class="carga-table">
+        <thead>
+          <tr>
+            <th class="col-forn">Fornecedor</th>
+            <th class="col-carga">NF / Carga / Romaneio</th>
+            <th class="col-dpto">Departamento</th>
+            <th class="col-recebido">Recebido</th>
+          </tr>
+        </thead>
+        <tbody>
+          
+        <tr class="" data-row-id="f78b5da80e5a">
+          <td class="col-forn">Bom Pastor</td>
+          <td class="col-carga">NF 123941</td>
+          <td class="col-dpto">MOVEIS</td>
+          <td class="col-recebido">
+            <label class="chk-label">
+              <input type="checkbox" class="chk-recebido" 
+                data-id="f78b5da80e5a" data-initial="0"
+                data-cd="GO" data-data="2026-08-07"
+                data-forn="Bom Pastor" data-carga="NF 123941"
+                onchange="onToggleRecebido(this)">
+              <span>Recebido</span>
+            </label>
+            
+          </td>
+        </tr>
+
+        <tr class="" data-row-id="6241caed8462">
+          <td class="col-forn">Lanza</td>
+          <td class="col-carga">Carro 01</td>
+          <td class="col-dpto">MOVEIS</td>
+          <td class="col-recebido">
+            <label class="chk-label">
+              <input type="checkbox" class="chk-recebido" 
+                data-id="6241caed8462" data-initial="0"
+                data-cd="GO" data-data="2026-08-07"
+                data-forn="Lanza" data-carga="Carro 01"
+                onchange="onToggleRecebido(this)">
+              <span>Recebido</span>
+            </label>
+            
+          </td>
+        </tr>
+
+        <tr class="" data-row-id="91b8f76208d3">
+          <td class="col-forn">Mondial</td>
+          <td class="col-carga">Carro 08</td>
+          <td class="col-dpto">PORTATEIS</td>
+          <td class="col-recebido">
+            <label class="chk-label">
+              <input type="checkbox" class="chk-recebido" 
+                data-id="91b8f76208d3" data-initial="0"
+                data-cd="GO" data-data="2026-08-07"
+                data-forn="Mondial" data-carga="Carro 08"
+                onchange="onToggleRecebido(this)">
+              <span>Recebido</span>
+            </label>
+            
+          </td>
+        </tr>
+        </tbody>
+      </table>
+      </div>
+    </section>
+
+    <section class="day-block status-passado">
+      <div class="day-head">
+        <div class="day-title">
+          <span class="day-date">Segunda-feira, 10 de agosto de 2026</span>
+          <span class="badge badge-passado">Data já passada</span>
+        </div>
+        <div class="day-kpis">
+          <span class="confirm-count" data-day-total="3">0/3 confirmadas</span>
+          <span class="dot">&middot;</span>
+          <span>3 cargas</span>
+        </div>
+      </div>
+      <div class="table-scroll">
+      <table class="carga-table">
+        <thead>
+          <tr>
+            <th class="col-forn">Fornecedor</th>
+            <th class="col-carga">NF / Carga / Romaneio</th>
+            <th class="col-dpto">Departamento</th>
+            <th class="col-recebido">Recebido</th>
+          </tr>
+        </thead>
+        <tbody>
+          
+        <tr class="" data-row-id="6212f7b012d5">
+          <td class="col-forn">Atlas</td>
+          <td class="col-carga">BITREM 05 - PARTE 01</td>
+          <td class="col-dpto">BRANCA</td>
+          <td class="col-recebido">
+            <label class="chk-label">
+              <input type="checkbox" class="chk-recebido" 
+                data-id="6212f7b012d5" data-initial="0"
+                data-cd="GO" data-data="2026-08-10"
+                data-forn="Atlas" data-carga="BITREM 05 - PARTE 01"
+                onchange="onToggleRecebido(this)">
+              <span>Recebido</span>
+            </label>
+            
+          </td>
+        </tr>
+
+        <tr class="" data-row-id="a0ad8fcfa26f">
+          <td class="col-forn">Atlas</td>
+          <td class="col-carga">BITREM 05 - PARTE 02</td>
+          <td class="col-dpto">BRANCA</td>
+          <td class="col-recebido">
+            <label class="chk-label">
+              <input type="checkbox" class="chk-recebido" 
+                data-id="a0ad8fcfa26f" data-initial="0"
+                data-cd="GO" data-data="2026-08-10"
+                data-forn="Atlas" data-carga="BITREM 05 - PARTE 02"
+                onchange="onToggleRecebido(this)">
+              <span>Recebido</span>
+            </label>
+            
+          </td>
+        </tr>
+
+        <tr class="" data-row-id="9034541d1906">
+          <td class="col-forn">Itatiaia</td>
+          <td class="col-carga">Carga 7648</td>
+          <td class="col-dpto">MOVEIS</td>
+          <td class="col-recebido">
+            <label class="chk-label">
+              <input type="checkbox" class="chk-recebido" 
+                data-id="9034541d1906" data-initial="0"
+                data-cd="GO" data-data="2026-08-10"
+                data-forn="Itatiaia" data-carga="Carga 7648"
+                onchange="onToggleRecebido(this)">
+              <span>Recebido</span>
+            </label>
+            
+          </td>
+        </tr>
+        </tbody>
+      </table>
+      </div>
+    </section>
+
+    <section class="day-block status-hoje">
+      <div class="day-head">
+        <div class="day-title">
+          <span class="day-date">Terça-feira, 11 de agosto de 2026</span>
+          <span class="badge badge-hoje">Hoje</span>
+        </div>
+        <div class="day-kpis">
+          <span class="confirm-count" data-day-total="1">0/1 confirmadas</span>
+          <span class="dot">&middot;</span>
+          <span>1 carga</span>
+        </div>
+      </div>
+      <div class="table-scroll">
+      <table class="carga-table">
+        <thead>
+          <tr>
+            <th class="col-forn">Fornecedor</th>
+            <th class="col-carga">NF / Carga / Romaneio</th>
+            <th class="col-dpto">Departamento</th>
+            <th class="col-recebido">Recebido</th>
+          </tr>
+        </thead>
+        <tbody>
+          
+        <tr class="" data-row-id="024b2005ff92">
+          <td class="col-forn">Atlas</td>
+          <td class="col-carga">CARRO 27</td>
+          <td class="col-dpto">BRANCA</td>
+          <td class="col-recebido">
+            <label class="chk-label">
+              <input type="checkbox" class="chk-recebido" 
+                data-id="024b2005ff92" data-initial="0"
+                data-cd="GO" data-data="2026-08-11"
+                data-forn="Atlas" data-carga="CARRO 27"
+                onchange="onToggleRecebido(this)">
+              <span>Recebido</span>
+            </label>
+            
+          </td>
+        </tr>
+        </tbody>
+      </table>
+      </div>
+    </section>
+
+    <section class="day-block status-futuro">
+      <div class="day-head">
+        <div class="day-title">
+          <span class="day-date">Sexta-feira, 14 de agosto de 2026</span>
+          <span class="badge badge-futuro">Programado</span>
+        </div>
+        <div class="day-kpis">
+          <span class="confirm-count" data-day-total="1">0/1 confirmadas</span>
+          <span class="dot">&middot;</span>
+          <span>1 carga</span>
+        </div>
+      </div>
+      <div class="table-scroll">
+      <table class="carga-table">
+        <thead>
+          <tr>
+            <th class="col-forn">Fornecedor</th>
+            <th class="col-carga">NF / Carga / Romaneio</th>
+            <th class="col-dpto">Departamento</th>
+            <th class="col-recebido">Recebido</th>
+          </tr>
+        </thead>
+        <tbody>
+          
+        <tr class="" data-row-id="0e42db278f8e">
+          <td class="col-forn">Bom Pastor</td>
+          <td class="col-carga">NF 123942</td>
+          <td class="col-dpto">MOVEIS</td>
+          <td class="col-recebido">
+            <label class="chk-label">
+              <input type="checkbox" class="chk-recebido" 
+                data-id="0e42db278f8e" data-initial="0"
+                data-cd="GO" data-data="2026-08-14"
+                data-forn="Bom Pastor" data-carga="NF 123942"
+                onchange="onToggleRecebido(this)">
+              <span>Recebido</span>
+            </label>
+            
+          </td>
+        </tr>
+        </tbody>
+      </table>
+      </div>
+    </section>
+
+    <section class="day-block status-futuro">
+      <div class="day-head">
+        <div class="day-title">
+          <span class="day-date">Sábado, 15 de agosto de 2026</span>
+          <span class="badge badge-futuro">Programado</span>
+        </div>
+        <div class="day-kpis">
+          <span class="confirm-count" data-day-total="1">0/1 confirmadas</span>
+          <span class="dot">&middot;</span>
+          <span>1 carga</span>
+        </div>
+      </div>
+      <div class="table-scroll">
+      <table class="carga-table">
+        <thead>
+          <tr>
+            <th class="col-forn">Fornecedor</th>
+            <th class="col-carga">NF / Carga / Romaneio</th>
+            <th class="col-dpto">Departamento</th>
+            <th class="col-recebido">Recebido</th>
+          </tr>
+        </thead>
+        <tbody>
+          
+        <tr class="" data-row-id="f68f41126c48">
+          <td class="col-forn">Mondial</td>
+          <td class="col-carga">NFs 1025509 1016523 330691 330692 330693 330694 1025504 1019839 1019840 1025505 1025510</td>
+          <td class="col-dpto">PORTATEIS</td>
+          <td class="col-recebido">
+            <label class="chk-label">
+              <input type="checkbox" class="chk-recebido" 
+                data-id="f68f41126c48" data-initial="0"
+                data-cd="GO" data-data="2026-08-15"
+                data-forn="Mondial" data-carga="NFs 1025509 1016523 330691 330692 330693 330694 1025504 1019839 1019840 1025505 1025510"
+                onchange="onToggleRecebido(this)">
+              <span>Recebido</span>
+            </label>
+            
+          </td>
+        </tr>
+        </tbody>
+      </table>
+      </div>
+    </section>
+
+    <section class="day-block status-futuro">
+      <div class="day-head">
+        <div class="day-title">
+          <span class="day-date">Segunda-feira, 17 de agosto de 2026</span>
+          <span class="badge badge-futuro">Programado</span>
+        </div>
+        <div class="day-kpis">
+          <span class="confirm-count" data-day-total="2">0/2 confirmadas</span>
+          <span class="dot">&middot;</span>
+          <span>2 cargas</span>
+        </div>
+      </div>
+      <div class="table-scroll">
+      <table class="carga-table">
+        <thead>
+          <tr>
+            <th class="col-forn">Fornecedor</th>
+            <th class="col-carga">NF / Carga / Romaneio</th>
+            <th class="col-dpto">Departamento</th>
+            <th class="col-recebido">Recebido</th>
+          </tr>
+        </thead>
+        <tbody>
+          
+        <tr class="" data-row-id="12dd61847592">
+          <td class="col-forn">Atlas</td>
+          <td class="col-carga">CARRO 28</td>
+          <td class="col-dpto">BRANCA</td>
+          <td class="col-recebido">
+            <label class="chk-label">
+              <input type="checkbox" class="chk-recebido" 
+                data-id="12dd61847592" data-initial="0"
+                data-cd="GO" data-data="2026-08-17"
+                data-forn="Atlas" data-carga="CARRO 28"
+                onchange="onToggleRecebido(this)">
+              <span>Recebido</span>
+            </label>
+            
+          </td>
+        </tr>
+
+        <tr class="" data-row-id="9644cba2d7fc">
+          <td class="col-forn">Fischer</td>
+          <td class="col-carga">Romaneio 01</td>
+          <td class="col-dpto">BRANCA</td>
+          <td class="col-recebido">
+            <label class="chk-label">
+              <input type="checkbox" class="chk-recebido" 
+                data-id="9644cba2d7fc" data-initial="0"
+                data-cd="GO" data-data="2026-08-17"
+                data-forn="Fischer" data-carga="Romaneio 01"
+                onchange="onToggleRecebido(this)">
+              <span>Recebido</span>
+            </label>
+            
+          </td>
+        </tr>
+        </tbody>
+      </table>
+      </div>
+    </section>
+
+    <section class="day-block status-futuro">
+      <div class="day-head">
+        <div class="day-title">
+          <span class="day-date">Terça-feira, 18 de agosto de 2026</span>
+          <span class="badge badge-futuro">Programado</span>
+        </div>
+        <div class="day-kpis">
+          <span class="confirm-count" data-day-total="1">0/1 confirmadas</span>
+          <span class="dot">&middot;</span>
+          <span>1 carga</span>
+        </div>
+      </div>
+      <div class="table-scroll">
+      <table class="carga-table">
+        <thead>
+          <tr>
+            <th class="col-forn">Fornecedor</th>
+            <th class="col-carga">NF / Carga / Romaneio</th>
+            <th class="col-dpto">Departamento</th>
+            <th class="col-recebido">Recebido</th>
+          </tr>
+        </thead>
+        <tbody>
+          
+        <tr class="" data-row-id="bd71cf1a818d">
+          <td class="col-forn">Atlas</td>
+          <td class="col-carga">CARRO 29</td>
+          <td class="col-dpto">BRANCA</td>
+          <td class="col-recebido">
+            <label class="chk-label">
+              <input type="checkbox" class="chk-recebido" 
+                data-id="bd71cf1a818d" data-initial="0"
+                data-cd="GO" data-data="2026-08-18"
+                data-forn="Atlas" data-carga="CARRO 29"
+                onchange="onToggleRecebido(this)">
+              <span>Recebido</span>
+            </label>
+            
+          </td>
+        </tr>
+        </tbody>
+      </table>
+      </div>
+    </section>
+
+    <section class="day-block status-futuro">
+      <div class="day-head">
+        <div class="day-title">
+          <span class="day-date">Quinta-feira, 20 de agosto de 2026</span>
+          <span class="badge badge-futuro">Programado</span>
+        </div>
+        <div class="day-kpis">
+          <span class="confirm-count" data-day-total="2">0/2 confirmadas</span>
+          <span class="dot">&middot;</span>
+          <span>2 cargas</span>
+        </div>
+      </div>
+      <div class="table-scroll">
+      <table class="carga-table">
+        <thead>
+          <tr>
+            <th class="col-forn">Fornecedor</th>
+            <th class="col-carga">NF / Carga / Romaneio</th>
+            <th class="col-dpto">Departamento</th>
+            <th class="col-recebido">Recebido</th>
+          </tr>
+        </thead>
+        <tbody>
+          
+        <tr class="" data-row-id="4c228abab687">
+          <td class="col-forn">Hellen</td>
+          <td class="col-carga">Carga 7111</td>
+          <td class="col-dpto">MOVEIS</td>
+          <td class="col-recebido">
+            <label class="chk-label">
+              <input type="checkbox" class="chk-recebido" 
+                data-id="4c228abab687" data-initial="0"
+                data-cd="GO" data-data="2026-08-20"
+                data-forn="Hellen" data-carga="Carga 7111"
+                onchange="onToggleRecebido(this)">
+              <span>Recebido</span>
+            </label>
+            
+          </td>
+        </tr>
+
+        <tr class="" data-row-id="d7eb72b829e0">
+          <td class="col-forn">Hellen</td>
+          <td class="col-carga">Carga 7112</td>
+          <td class="col-dpto">MOVEIS</td>
+          <td class="col-recebido">
+            <label class="chk-label">
+              <input type="checkbox" class="chk-recebido" 
+                data-id="d7eb72b829e0" data-initial="0"
+                data-cd="GO" data-data="2026-08-20"
+                data-forn="Hellen" data-carga="Carga 7112"
+                onchange="onToggleRecebido(this)">
+              <span>Recebido</span>
+            </label>
+            
+          </td>
+        </tr>
+        </tbody>
+      </table>
+      </div>
+    </section>
+
+    <section class="day-block status-futuro">
+      <div class="day-head">
+        <div class="day-title">
+          <span class="day-date">Sexta-feira, 21 de agosto de 2026</span>
+          <span class="badge badge-futuro">Programado</span>
+        </div>
+        <div class="day-kpis">
+          <span class="confirm-count" data-day-total="1">0/1 confirmadas</span>
+          <span class="dot">&middot;</span>
+          <span>1 carga</span>
+        </div>
+      </div>
+      <div class="table-scroll">
+      <table class="carga-table">
+        <thead>
+          <tr>
+            <th class="col-forn">Fornecedor</th>
+            <th class="col-carga">NF / Carga / Romaneio</th>
+            <th class="col-dpto">Departamento</th>
+            <th class="col-recebido">Recebido</th>
+          </tr>
+        </thead>
+        <tbody>
+          
+        <tr class="" data-row-id="72ba617d85a2">
+          <td class="col-forn">Bom Pastor</td>
+          <td class="col-carga">NF 123943</td>
+          <td class="col-dpto">MOVEIS</td>
+          <td class="col-recebido">
+            <label class="chk-label">
+              <input type="checkbox" class="chk-recebido" 
+                data-id="72ba617d85a2" data-initial="0"
+                data-cd="GO" data-data="2026-08-21"
+                data-forn="Bom Pastor" data-carga="NF 123943"
+                onchange="onToggleRecebido(this)">
+              <span>Recebido</span>
+            </label>
+            
+          </td>
+        </tr>
+        </tbody>
+      </table>
+      </div>
+    </section>
+
+    <section class="day-block status-futuro">
+      <div class="day-head">
+        <div class="day-title">
+          <span class="day-date">Segunda-feira, 24 de agosto de 2026</span>
+          <span class="badge badge-futuro">Programado</span>
+        </div>
+        <div class="day-kpis">
+          <span class="confirm-count" data-day-total="2">0/2 confirmadas</span>
+          <span class="dot">&middot;</span>
+          <span>2 cargas</span>
+        </div>
+      </div>
+      <div class="table-scroll">
+      <table class="carga-table">
+        <thead>
+          <tr>
+            <th class="col-forn">Fornecedor</th>
+            <th class="col-carga">NF / Carga / Romaneio</th>
+            <th class="col-dpto">Departamento</th>
+            <th class="col-recebido">Recebido</th>
+          </tr>
+        </thead>
+        <tbody>
+          
+        <tr class="" data-row-id="c696bd74f36e">
+          <td class="col-forn">Hellen</td>
+          <td class="col-carga">Carga 7113</td>
+          <td class="col-dpto">MOVEIS</td>
+          <td class="col-recebido">
+            <label class="chk-label">
+              <input type="checkbox" class="chk-recebido" 
+                data-id="c696bd74f36e" data-initial="0"
+                data-cd="GO" data-data="2026-08-24"
+                data-forn="Hellen" data-carga="Carga 7113"
+                onchange="onToggleRecebido(this)">
+              <span>Recebido</span>
+            </label>
+            
+          </td>
+        </tr>
+
+        <tr class="" data-row-id="d1d70ea1d9d4">
+          <td class="col-forn">Hellen</td>
+          <td class="col-carga">Carga 7114</td>
+          <td class="col-dpto">MOVEIS</td>
+          <td class="col-recebido">
+            <label class="chk-label">
+              <input type="checkbox" class="chk-recebido" 
+                data-id="d1d70ea1d9d4" data-initial="0"
+                data-cd="GO" data-data="2026-08-24"
+                data-forn="Hellen" data-carga="Carga 7114"
+                onchange="onToggleRecebido(this)">
+              <span>Recebido</span>
+            </label>
+            
+          </td>
+        </tr>
+        </tbody>
+      </table>
+      </div>
+    </section>
+
+    <section class="day-block status-futuro">
+      <div class="day-head">
+        <div class="day-title">
+          <span class="day-date">Terça-feira, 25 de agosto de 2026</span>
+          <span class="badge badge-futuro">Programado</span>
+        </div>
+        <div class="day-kpis">
+          <span class="confirm-count" data-day-total="4">0/4 confirmadas</span>
+          <span class="dot">&middot;</span>
+          <span>4 cargas</span>
+        </div>
+      </div>
+      <div class="table-scroll">
+      <table class="carga-table">
+        <thead>
+          <tr>
+            <th class="col-forn">Fornecedor</th>
+            <th class="col-carga">NF / Carga / Romaneio</th>
+            <th class="col-dpto">Departamento</th>
+            <th class="col-recebido">Recebido</th>
+          </tr>
+        </thead>
+        <tbody>
+          
+        <tr class="" data-row-id="b03029705ab3">
+          <td class="col-forn">Hellen</td>
+          <td class="col-carga">Carga 498156</td>
+          <td class="col-dpto">MOVEIS</td>
+          <td class="col-recebido">
+            <label class="chk-label">
+              <input type="checkbox" class="chk-recebido" 
+                data-id="b03029705ab3" data-initial="0"
+                data-cd="GO" data-data="2026-08-25"
+                data-forn="Hellen" data-carga="Carga 498156"
+                onchange="onToggleRecebido(this)">
+              <span>Recebido</span>
+            </label>
+            
+          </td>
+        </tr>
+
+        <tr class="" data-row-id="881bc6de5d96">
+          <td class="col-forn">Hellen</td>
+          <td class="col-carga">Carga 7119</td>
+          <td class="col-dpto">MOVEIS</td>
+          <td class="col-recebido">
+            <label class="chk-label">
+              <input type="checkbox" class="chk-recebido" 
+                data-id="881bc6de5d96" data-initial="0"
+                data-cd="GO" data-data="2026-08-25"
+                data-forn="Hellen" data-carga="Carga 7119"
+                onchange="onToggleRecebido(this)">
+              <span>Recebido</span>
+            </label>
+            
+          </td>
+        </tr>
+
+        <tr class="" data-row-id="7c1741f7c005">
+          <td class="col-forn">Hellen</td>
+          <td class="col-carga">Carga 7120</td>
+          <td class="col-dpto">MOVEIS</td>
+          <td class="col-recebido">
+            <label class="chk-label">
+              <input type="checkbox" class="chk-recebido" 
+                data-id="7c1741f7c005" data-initial="0"
+                data-cd="GO" data-data="2026-08-25"
+                data-forn="Hellen" data-carga="Carga 7120"
+                onchange="onToggleRecebido(this)">
+              <span>Recebido</span>
+            </label>
+            
+          </td>
+        </tr>
+
+        <tr class="" data-row-id="b47e54663f16">
+          <td class="col-forn">Hellen</td>
+          <td class="col-carga">Carga 7127</td>
+          <td class="col-dpto">MOVEIS</td>
+          <td class="col-recebido">
+            <label class="chk-label">
+              <input type="checkbox" class="chk-recebido" 
+                data-id="b47e54663f16" data-initial="0"
+                data-cd="GO" data-data="2026-08-25"
+                data-forn="Hellen" data-carga="Carga 7127"
+                onchange="onToggleRecebido(this)">
+              <span>Recebido</span>
+            </label>
+            
+          </td>
+        </tr>
+        </tbody>
+      </table>
+      </div>
+    </section>
+
+    <section class="day-block status-futuro">
+      <div class="day-head">
+        <div class="day-title">
+          <span class="day-date">Quinta-feira, 27 de agosto de 2026</span>
+          <span class="badge badge-futuro">Programado</span>
+        </div>
+        <div class="day-kpis">
+          <span class="confirm-count" data-day-total="2">0/2 confirmadas</span>
+          <span class="dot">&middot;</span>
+          <span>2 cargas</span>
+        </div>
+      </div>
+      <div class="table-scroll">
+      <table class="carga-table">
+        <thead>
+          <tr>
+            <th class="col-forn">Fornecedor</th>
+            <th class="col-carga">NF / Carga / Romaneio</th>
+            <th class="col-dpto">Departamento</th>
+            <th class="col-recebido">Recebido</th>
+          </tr>
+        </thead>
+        <tbody>
+          
+        <tr class="" data-row-id="ff81432e7a66">
+          <td class="col-forn">Hellen</td>
+          <td class="col-carga">Carga 7121</td>
+          <td class="col-dpto">MOVEIS</td>
+          <td class="col-recebido">
+            <label class="chk-label">
+              <input type="checkbox" class="chk-recebido" 
+                data-id="ff81432e7a66" data-initial="0"
+                data-cd="GO" data-data="2026-08-27"
+                data-forn="Hellen" data-carga="Carga 7121"
+                onchange="onToggleRecebido(this)">
+              <span>Recebido</span>
+            </label>
+            
+          </td>
+        </tr>
+
+        <tr class="" data-row-id="5a45746f5f00">
+          <td class="col-forn">Hellen</td>
+          <td class="col-carga">Carga 7125</td>
+          <td class="col-dpto">MOVEIS</td>
+          <td class="col-recebido">
+            <label class="chk-label">
+              <input type="checkbox" class="chk-recebido" 
+                data-id="5a45746f5f00" data-initial="0"
+                data-cd="GO" data-data="2026-08-27"
+                data-forn="Hellen" data-carga="Carga 7125"
+                onchange="onToggleRecebido(this)">
+              <span>Recebido</span>
+            </label>
+            
+          </td>
+        </tr>
+        </tbody>
+      </table>
+      </div>
+    </section>
+
+    <section class="day-block status-futuro">
+      <div class="day-head">
+        <div class="day-title">
+          <span class="day-date">Sexta-feira, 28 de agosto de 2026</span>
+          <span class="badge badge-futuro">Programado</span>
+        </div>
+        <div class="day-kpis">
+          <span class="confirm-count" data-day-total="3">0/3 confirmadas</span>
+          <span class="dot">&middot;</span>
+          <span>3 cargas</span>
+        </div>
+      </div>
+      <div class="table-scroll">
+      <table class="carga-table">
+        <thead>
+          <tr>
+            <th class="col-forn">Fornecedor</th>
+            <th class="col-carga">NF / Carga / Romaneio</th>
+            <th class="col-dpto">Departamento</th>
+            <th class="col-recebido">Recebido</th>
+          </tr>
+        </thead>
+        <tbody>
+          
+        <tr class="" data-row-id="03989f3ed978">
+          <td class="col-forn">Hellen</td>
+          <td class="col-carga">Carga 498152</td>
+          <td class="col-dpto">MOVEIS</td>
+          <td class="col-recebido">
+            <label class="chk-label">
+              <input type="checkbox" class="chk-recebido" 
+                data-id="03989f3ed978" data-initial="0"
+                data-cd="GO" data-data="2026-08-28"
+                data-forn="Hellen" data-carga="Carga 498152"
+                onchange="onToggleRecebido(this)">
+              <span>Recebido</span>
+            </label>
+            
+          </td>
+        </tr>
+
+        <tr class="" data-row-id="a41ae343d2ae">
+          <td class="col-forn">Hellen</td>
+          <td class="col-carga">Carga 7117</td>
+          <td class="col-dpto">MOVEIS</td>
+          <td class="col-recebido">
+            <label class="chk-label">
+              <input type="checkbox" class="chk-recebido" 
+                data-id="a41ae343d2ae" data-initial="0"
+                data-cd="GO" data-data="2026-08-28"
+                data-forn="Hellen" data-carga="Carga 7117"
+                onchange="onToggleRecebido(this)">
+              <span>Recebido</span>
+            </label>
+            
+          </td>
+        </tr>
+
+        <tr class="" data-row-id="88627afe757a">
+          <td class="col-forn">Hellen</td>
+          <td class="col-carga">Carga 7126</td>
+          <td class="col-dpto">MOVEIS</td>
+          <td class="col-recebido">
+            <label class="chk-label">
+              <input type="checkbox" class="chk-recebido" 
+                data-id="88627afe757a" data-initial="0"
+                data-cd="GO" data-data="2026-08-28"
+                data-forn="Hellen" data-carga="Carga 7126"
+                onchange="onToggleRecebido(this)">
+              <span>Recebido</span>
+            </label>
+            
+          </td>
+        </tr>
+        </tbody>
+      </table>
+      </div>
+    </section>
+
+    <section class="day-block status-futuro">
+      <div class="day-head">
+        <div class="day-title">
+          <span class="day-date">Segunda-feira, 31 de agosto de 2026</span>
+          <span class="badge badge-futuro">Programado</span>
+        </div>
+        <div class="day-kpis">
+          <span class="confirm-count" data-day-total="4">0/4 confirmadas</span>
+          <span class="dot">&middot;</span>
+          <span>4 cargas</span>
+        </div>
+      </div>
+      <div class="table-scroll">
+      <table class="carga-table">
+        <thead>
+          <tr>
+            <th class="col-forn">Fornecedor</th>
+            <th class="col-carga">NF / Carga / Romaneio</th>
+            <th class="col-dpto">Departamento</th>
+            <th class="col-recebido">Recebido</th>
+          </tr>
+        </thead>
+        <tbody>
+          
+        <tr class="" data-row-id="f4e43c9fdc2e">
+          <td class="col-forn">Hellen</td>
+          <td class="col-carga">Carga 498154</td>
+          <td class="col-dpto">MOVEIS</td>
+          <td class="col-recebido">
+            <label class="chk-label">
+              <input type="checkbox" class="chk-recebido" 
+                data-id="f4e43c9fdc2e" data-initial="0"
+                data-cd="GO" data-data="2026-08-31"
+                data-forn="Hellen" data-carga="Carga 498154"
+                onchange="onToggleRecebido(this)">
+              <span>Recebido</span>
+            </label>
+            
+          </td>
+        </tr>
+
+        <tr class="" data-row-id="1b84c9b98f0f">
+          <td class="col-forn">Hellen</td>
+          <td class="col-carga">Carga 7115</td>
+          <td class="col-dpto">MOVEIS</td>
+          <td class="col-recebido">
+            <label class="chk-label">
+              <input type="checkbox" class="chk-recebido" 
+                data-id="1b84c9b98f0f" data-initial="0"
+                data-cd="GO" data-data="2026-08-31"
+                data-forn="Hellen" data-carga="Carga 7115"
+                onchange="onToggleRecebido(this)">
+              <span>Recebido</span>
+            </label>
+            
+          </td>
+        </tr>
+
+        <tr class="" data-row-id="423e0442fedd">
+          <td class="col-forn">Hellen</td>
+          <td class="col-carga">Carga 7116</td>
+          <td class="col-dpto">MOVEIS</td>
+          <td class="col-recebido">
+            <label class="chk-label">
+              <input type="checkbox" class="chk-recebido" 
+                data-id="423e0442fedd" data-initial="0"
+                data-cd="GO" data-data="2026-08-31"
+                data-forn="Hellen" data-carga="Carga 7116"
+                onchange="onToggleRecebido(this)">
+              <span>Recebido</span>
+            </label>
+            
+          </td>
+        </tr>
+
+        <tr class="" data-row-id="33ff003f01bf">
+          <td class="col-forn">Hellen</td>
+          <td class="col-carga">Carga 7122</td>
+          <td class="col-dpto">MOVEIS</td>
+          <td class="col-recebido">
+            <label class="chk-label">
+              <input type="checkbox" class="chk-recebido" 
+                data-id="33ff003f01bf" data-initial="0"
+                data-cd="GO" data-data="2026-08-31"
+                data-forn="Hellen" data-carga="Carga 7122"
+                onchange="onToggleRecebido(this)">
+              <span>Recebido</span>
+            </label>
+            
+          </td>
+        </tr>
+        </tbody>
+      </table>
+      </div>
+    </section>
+
+    <section class="day-block status-futuro">
+      <div class="day-head">
+        <div class="day-title">
+          <span class="day-date">Terça-feira, 01 de setembro de 2026</span>
+          <span class="badge badge-futuro">Programado</span>
+        </div>
+        <div class="day-kpis">
+          <span class="confirm-count" data-day-total="3">0/3 confirmadas</span>
+          <span class="dot">&middot;</span>
+          <span>3 cargas</span>
+        </div>
+      </div>
+      <div class="table-scroll">
+      <table class="carga-table">
+        <thead>
+          <tr>
+            <th class="col-forn">Fornecedor</th>
+            <th class="col-carga">NF / Carga / Romaneio</th>
+            <th class="col-dpto">Departamento</th>
+            <th class="col-recebido">Recebido</th>
+          </tr>
+        </thead>
+        <tbody>
+          
+        <tr class="" data-row-id="df9a59428138">
+          <td class="col-forn">Hellen</td>
+          <td class="col-carga">Carga 7118</td>
+          <td class="col-dpto">MOVEIS</td>
+          <td class="col-recebido">
+            <label class="chk-label">
+              <input type="checkbox" class="chk-recebido" 
+                data-id="df9a59428138" data-initial="0"
+                data-cd="GO" data-data="2026-09-01"
+                data-forn="Hellen" data-carga="Carga 7118"
+                onchange="onToggleRecebido(this)">
+              <span>Recebido</span>
+            </label>
+            
+          </td>
+        </tr>
+
+        <tr class="" data-row-id="df87844b7910">
+          <td class="col-forn">Hellen</td>
+          <td class="col-carga">Carga 7123</td>
+          <td class="col-dpto">MOVEIS</td>
+          <td class="col-recebido">
+            <label class="chk-label">
+              <input type="checkbox" class="chk-recebido" 
+                data-id="df87844b7910" data-initial="0"
+                data-cd="GO" data-data="2026-09-01"
+                data-forn="Hellen" data-carga="Carga 7123"
+                onchange="onToggleRecebido(this)">
+              <span>Recebido</span>
+            </label>
+            
+          </td>
+        </tr>
+
+        <tr class="" data-row-id="6f2c0318d02b">
+          <td class="col-forn">Hellen</td>
+          <td class="col-carga">Carga 7124</td>
+          <td class="col-dpto">MOVEIS</td>
+          <td class="col-recebido">
+            <label class="chk-label">
+              <input type="checkbox" class="chk-recebido" 
+                data-id="6f2c0318d02b" data-initial="0"
+                data-cd="GO" data-data="2026-09-01"
+                data-forn="Hellen" data-carga="Carga 7124"
+                onchange="onToggleRecebido(this)">
+              <span>Recebido</span>
+            </label>
+            
+          </td>
+        </tr>
+        </tbody>
+      </table>
+      </div>
+    </section>
+
+    <section class="day-block status-futuro">
+      <div class="day-head">
+        <div class="day-title">
+          <span class="day-date">Quarta-feira, 02 de setembro de 2026</span>
+          <span class="badge badge-futuro">Programado</span>
+        </div>
+        <div class="day-kpis">
+          <span class="confirm-count" data-day-total="3">0/3 confirmadas</span>
+          <span class="dot">&middot;</span>
+          <span>3 cargas</span>
+        </div>
+      </div>
+      <div class="table-scroll">
+      <table class="carga-table">
+        <thead>
+          <tr>
+            <th class="col-forn">Fornecedor</th>
+            <th class="col-carga">NF / Carga / Romaneio</th>
+            <th class="col-dpto">Departamento</th>
+            <th class="col-recebido">Recebido</th>
+          </tr>
+        </thead>
+        <tbody>
+          
+        <tr class="" data-row-id="1dad6019fd4c">
+          <td class="col-forn">Hellen</td>
+          <td class="col-carga">Carga 498158</td>
+          <td class="col-dpto">MOVEIS</td>
+          <td class="col-recebido">
+            <label class="chk-label">
+              <input type="checkbox" class="chk-recebido" 
+                data-id="1dad6019fd4c" data-initial="0"
+                data-cd="GO" data-data="2026-09-02"
+                data-forn="Hellen" data-carga="Carga 498158"
+                onchange="onToggleRecebido(this)">
+              <span>Recebido</span>
+            </label>
+            
+          </td>
+        </tr>
+
+        <tr class="" data-row-id="9fed70a4e017">
+          <td class="col-forn">Hellen</td>
+          <td class="col-carga">Carga 498159</td>
+          <td class="col-dpto">MOVEIS</td>
+          <td class="col-recebido">
+            <label class="chk-label">
+              <input type="checkbox" class="chk-recebido" 
+                data-id="9fed70a4e017" data-initial="0"
+                data-cd="GO" data-data="2026-09-02"
+                data-forn="Hellen" data-carga="Carga 498159"
+                onchange="onToggleRecebido(this)">
+              <span>Recebido</span>
+            </label>
+            
+          </td>
+        </tr>
+
+        <tr class="" data-row-id="17c7b4feb48c">
+          <td class="col-forn">Hellen</td>
+          <td class="col-carga">Carga 7128</td>
+          <td class="col-dpto">MOVEIS</td>
+          <td class="col-recebido">
+            <label class="chk-label">
+              <input type="checkbox" class="chk-recebido" 
+                data-id="17c7b4feb48c" data-initial="0"
+                data-cd="GO" data-data="2026-09-02"
+                data-forn="Hellen" data-carga="Carga 7128"
+                onchange="onToggleRecebido(this)">
+              <span>Recebido</span>
+            </label>
+            
+          </td>
+        </tr>
+        </tbody>
+      </table>
+      </div>
+    </section>
+
+    <section class="day-block status-futuro">
+      <div class="day-head">
+        <div class="day-title">
+          <span class="day-date">Quinta-feira, 03 de setembro de 2026</span>
+          <span class="badge badge-futuro">Programado</span>
+        </div>
+        <div class="day-kpis">
+          <span class="confirm-count" data-day-total="2">0/2 confirmadas</span>
+          <span class="dot">&middot;</span>
+          <span>2 cargas</span>
+        </div>
+      </div>
+      <div class="table-scroll">
+      <table class="carga-table">
+        <thead>
+          <tr>
+            <th class="col-forn">Fornecedor</th>
+            <th class="col-carga">NF / Carga / Romaneio</th>
+            <th class="col-dpto">Departamento</th>
+            <th class="col-recebido">Recebido</th>
+          </tr>
+        </thead>
+        <tbody>
+          
+        <tr class="" data-row-id="f3680530bb65">
+          <td class="col-forn">Hellen</td>
+          <td class="col-carga">Carga 7149</td>
+          <td class="col-dpto">MOVEIS</td>
+          <td class="col-recebido">
+            <label class="chk-label">
+              <input type="checkbox" class="chk-recebido" 
+                data-id="f3680530bb65" data-initial="0"
+                data-cd="GO" data-data="2026-09-03"
+                data-forn="Hellen" data-carga="Carga 7149"
+                onchange="onToggleRecebido(this)">
+              <span>Recebido</span>
+            </label>
+            
+          </td>
+        </tr>
+
+        <tr class="" data-row-id="cf889431ab1c">
+          <td class="col-forn">Hellen</td>
+          <td class="col-carga">Carga 7150</td>
+          <td class="col-dpto">MOVEIS</td>
+          <td class="col-recebido">
+            <label class="chk-label">
+              <input type="checkbox" class="chk-recebido" 
+                data-id="cf889431ab1c" data-initial="0"
+                data-cd="GO" data-data="2026-09-03"
+                data-forn="Hellen" data-carga="Carga 7150"
+                onchange="onToggleRecebido(this)">
+              <span>Recebido</span>
+            </label>
+            
+          </td>
+        </tr>
+        </tbody>
+      </table>
+      </div>
+    </section>
+
+    <section class="day-block status-futuro">
+      <div class="day-head">
+        <div class="day-title">
+          <span class="day-date">Segunda-feira, 07 de setembro de 2026</span>
+          <span class="badge badge-futuro">Programado</span>
+        </div>
+        <div class="day-kpis">
+          <span class="confirm-count" data-day-total="4">0/4 confirmadas</span>
+          <span class="dot">&middot;</span>
+          <span>4 cargas</span>
+        </div>
+      </div>
+      <div class="table-scroll">
+      <table class="carga-table">
+        <thead>
+          <tr>
+            <th class="col-forn">Fornecedor</th>
+            <th class="col-carga">NF / Carga / Romaneio</th>
+            <th class="col-dpto">Departamento</th>
+            <th class="col-recebido">Recebido</th>
+          </tr>
+        </thead>
+        <tbody>
+          
+        <tr class="" data-row-id="d1a8b1c58859">
+          <td class="col-forn">Hellen</td>
+          <td class="col-carga">Carga 498153</td>
+          <td class="col-dpto">MOVEIS</td>
+          <td class="col-recebido">
+            <label class="chk-label">
+              <input type="checkbox" class="chk-recebido" 
+                data-id="d1a8b1c58859" data-initial="0"
+                data-cd="GO" data-data="2026-09-07"
+                data-forn="Hellen" data-carga="Carga 498153"
+                onchange="onToggleRecebido(this)">
+              <span>Recebido</span>
+            </label>
+            
+          </td>
+        </tr>
+
+        <tr class="" data-row-id="a85962a39301">
+          <td class="col-forn">Hellen</td>
+          <td class="col-carga">Carga 498155</td>
+          <td class="col-dpto">MOVEIS</td>
+          <td class="col-recebido">
+            <label class="chk-label">
+              <input type="checkbox" class="chk-recebido" 
+                data-id="a85962a39301" data-initial="0"
+                data-cd="GO" data-data="2026-09-07"
+                data-forn="Hellen" data-carga="Carga 498155"
+                onchange="onToggleRecebido(this)">
+              <span>Recebido</span>
+            </label>
+            
+          </td>
+        </tr>
+
+        <tr class="" data-row-id="3db3bd559b39">
+          <td class="col-forn">Hellen</td>
+          <td class="col-carga">Carga 7154</td>
+          <td class="col-dpto">MOVEIS</td>
+          <td class="col-recebido">
+            <label class="chk-label">
+              <input type="checkbox" class="chk-recebido" 
+                data-id="3db3bd559b39" data-initial="0"
+                data-cd="GO" data-data="2026-09-07"
+                data-forn="Hellen" data-carga="Carga 7154"
+                onchange="onToggleRecebido(this)">
+              <span>Recebido</span>
+            </label>
+            
+          </td>
+        </tr>
+
+        <tr class="" data-row-id="f073cf440610">
+          <td class="col-forn">Hellen</td>
+          <td class="col-carga">Carga 7155</td>
+          <td class="col-dpto">MOVEIS</td>
+          <td class="col-recebido">
+            <label class="chk-label">
+              <input type="checkbox" class="chk-recebido" 
+                data-id="f073cf440610" data-initial="0"
+                data-cd="GO" data-data="2026-09-07"
+                data-forn="Hellen" data-carga="Carga 7155"
+                onchange="onToggleRecebido(this)">
+              <span>Recebido</span>
+            </label>
+            
+          </td>
+        </tr>
+        </tbody>
+      </table>
+      </div>
+    </section>
+
+    <section class="day-block status-futuro">
+      <div class="day-head">
+        <div class="day-title">
+          <span class="day-date">Terça-feira, 08 de setembro de 2026</span>
+          <span class="badge badge-futuro">Programado</span>
+        </div>
+        <div class="day-kpis">
+          <span class="confirm-count" data-day-total="2">0/2 confirmadas</span>
+          <span class="dot">&middot;</span>
+          <span>2 cargas</span>
+        </div>
+      </div>
+      <div class="table-scroll">
+      <table class="carga-table">
+        <thead>
+          <tr>
+            <th class="col-forn">Fornecedor</th>
+            <th class="col-carga">NF / Carga / Romaneio</th>
+            <th class="col-dpto">Departamento</th>
+            <th class="col-recebido">Recebido</th>
+          </tr>
+        </thead>
+        <tbody>
+          
+        <tr class="" data-row-id="0415b4d002c4">
+          <td class="col-forn">Hellen</td>
+          <td class="col-carga">Carga 7152</td>
+          <td class="col-dpto">MOVEIS</td>
+          <td class="col-recebido">
+            <label class="chk-label">
+              <input type="checkbox" class="chk-recebido" 
+                data-id="0415b4d002c4" data-initial="0"
+                data-cd="GO" data-data="2026-09-08"
+                data-forn="Hellen" data-carga="Carga 7152"
+                onchange="onToggleRecebido(this)">
+              <span>Recebido</span>
+            </label>
+            
+          </td>
+        </tr>
+
+        <tr class="" data-row-id="f26db44cbfbe">
+          <td class="col-forn">Hellen</td>
+          <td class="col-carga">Carga 8151</td>
+          <td class="col-dpto">MOVEIS</td>
+          <td class="col-recebido">
+            <label class="chk-label">
+              <input type="checkbox" class="chk-recebido" 
+                data-id="f26db44cbfbe" data-initial="0"
+                data-cd="GO" data-data="2026-09-08"
+                data-forn="Hellen" data-carga="Carga 8151"
+                onchange="onToggleRecebido(this)">
+              <span>Recebido</span>
+            </label>
+            
+          </td>
+        </tr>
+        </tbody>
+      </table>
+      </div>
+    </section>
+
+    <section class="day-block status-futuro">
+      <div class="day-head">
+        <div class="day-title">
+          <span class="day-date">Quarta-feira, 09 de setembro de 2026</span>
+          <span class="badge badge-futuro">Programado</span>
+        </div>
+        <div class="day-kpis">
+          <span class="confirm-count" data-day-total="1">0/1 confirmadas</span>
+          <span class="dot">&middot;</span>
+          <span>1 carga</span>
+        </div>
+      </div>
+      <div class="table-scroll">
+      <table class="carga-table">
+        <thead>
+          <tr>
+            <th class="col-forn">Fornecedor</th>
+            <th class="col-carga">NF / Carga / Romaneio</th>
+            <th class="col-dpto">Departamento</th>
+            <th class="col-recebido">Recebido</th>
+          </tr>
+        </thead>
+        <tbody>
+          
+        <tr class="" data-row-id="69599d3467ba">
+          <td class="col-forn">Hellen</td>
+          <td class="col-carga">Carga 498160</td>
+          <td class="col-dpto">MOVEIS</td>
+          <td class="col-recebido">
+            <label class="chk-label">
+              <input type="checkbox" class="chk-recebido" 
+                data-id="69599d3467ba" data-initial="0"
+                data-cd="GO" data-data="2026-09-09"
+                data-forn="Hellen" data-carga="Carga 498160"
+                onchange="onToggleRecebido(this)">
+              <span>Recebido</span>
+            </label>
+            
+          </td>
+        </tr>
+        </tbody>
+      </table>
+      </div>
+    </section>
+
+    <section class="day-block status-futuro">
+      <div class="day-head">
+        <div class="day-title">
+          <span class="day-date">Quinta-feira, 10 de setembro de 2026</span>
+          <span class="badge badge-futuro">Programado</span>
+        </div>
+        <div class="day-kpis">
+          <span class="confirm-count" data-day-total="4">0/4 confirmadas</span>
+          <span class="dot">&middot;</span>
+          <span>4 cargas</span>
+        </div>
+      </div>
+      <div class="table-scroll">
+      <table class="carga-table">
+        <thead>
+          <tr>
+            <th class="col-forn">Fornecedor</th>
+            <th class="col-carga">NF / Carga / Romaneio</th>
+            <th class="col-dpto">Departamento</th>
+            <th class="col-recebido">Recebido</th>
+          </tr>
+        </thead>
+        <tbody>
+          
+        <tr class="" data-row-id="e1f9041bb79d">
+          <td class="col-forn">Hellen</td>
+          <td class="col-carga">Carga 7147</td>
+          <td class="col-dpto">MOVEIS</td>
+          <td class="col-recebido">
+            <label class="chk-label">
+              <input type="checkbox" class="chk-recebido" 
+                data-id="e1f9041bb79d" data-initial="0"
+                data-cd="GO" data-data="2026-09-10"
+                data-forn="Hellen" data-carga="Carga 7147"
+                onchange="onToggleRecebido(this)">
+              <span>Recebido</span>
+            </label>
+            
+          </td>
+        </tr>
+
+        <tr class="" data-row-id="5ab29dd1ebcf">
+          <td class="col-forn">Hellen</td>
+          <td class="col-carga">Carga 7148</td>
+          <td class="col-dpto">MOVEIS</td>
+          <td class="col-recebido">
+            <label class="chk-label">
+              <input type="checkbox" class="chk-recebido" 
+                data-id="5ab29dd1ebcf" data-initial="0"
+                data-cd="GO" data-data="2026-09-10"
+                data-forn="Hellen" data-carga="Carga 7148"
+                onchange="onToggleRecebido(this)">
+              <span>Recebido</span>
+            </label>
+            
+          </td>
+        </tr>
+
+        <tr class="" data-row-id="76c4fad1389a">
+          <td class="col-forn">Hellen</td>
+          <td class="col-carga">Carga 7153</td>
+          <td class="col-dpto">MOVEIS</td>
+          <td class="col-recebido">
+            <label class="chk-label">
+              <input type="checkbox" class="chk-recebido" 
+                data-id="76c4fad1389a" data-initial="0"
+                data-cd="GO" data-data="2026-09-10"
+                data-forn="Hellen" data-carga="Carga 7153"
+                onchange="onToggleRecebido(this)">
+              <span>Recebido</span>
+            </label>
+            
+          </td>
+        </tr>
+
+        <tr class="" data-row-id="446fe758f694">
+          <td class="col-forn">Hellen</td>
+          <td class="col-carga">Carga 7156</td>
+          <td class="col-dpto">MOVEIS</td>
+          <td class="col-recebido">
+            <label class="chk-label">
+              <input type="checkbox" class="chk-recebido" 
+                data-id="446fe758f694" data-initial="0"
+                data-cd="GO" data-data="2026-09-10"
+                data-forn="Hellen" data-carga="Carga 7156"
+                onchange="onToggleRecebido(this)">
+              <span>Recebido</span>
+            </label>
+            
+          </td>
+        </tr>
+        </tbody>
+      </table>
+      </div>
+    </section>
+
+    <section class="day-block status-futuro">
+      <div class="day-head">
+        <div class="day-title">
+          <span class="day-date">Sexta-feira, 11 de setembro de 2026</span>
+          <span class="badge badge-futuro">Programado</span>
+        </div>
+        <div class="day-kpis">
+          <span class="confirm-count" data-day-total="1">0/1 confirmadas</span>
+          <span class="dot">&middot;</span>
+          <span>1 carga</span>
+        </div>
+      </div>
+      <div class="table-scroll">
+      <table class="carga-table">
+        <thead>
+          <tr>
+            <th class="col-forn">Fornecedor</th>
+            <th class="col-carga">NF / Carga / Romaneio</th>
+            <th class="col-dpto">Departamento</th>
+            <th class="col-recebido">Recebido</th>
+          </tr>
+        </thead>
+        <tbody>
+          
+        <tr class="" data-row-id="9bb9920a9646">
+          <td class="col-forn">Hellen</td>
+          <td class="col-carga">Carga 498157</td>
+          <td class="col-dpto">MOVEIS</td>
+          <td class="col-recebido">
+            <label class="chk-label">
+              <input type="checkbox" class="chk-recebido" 
+                data-id="9bb9920a9646" data-initial="0"
+                data-cd="GO" data-data="2026-09-11"
+                data-forn="Hellen" data-carga="Carga 498157"
+                onchange="onToggleRecebido(this)">
+              <span>Recebido</span>
+            </label>
+            
+          </td>
+        </tr>
+        </tbody>
+      </table>
+      </div>
+    </section>
+  </div>
+
+  <div class="cd-panel" id="panel-MA" style="display:none">
+    <div class="kpi-row">
+      <div class="kpi-tile">
+        <span class="kpi-label">Cargas programadas</span>
+        <span class="kpi-value">3</span>
+      </div>
+      <div class="kpi-tile">
+        <span class="kpi-label">Fornecedores distintos</span>
+        <span class="kpi-value">2</span>
+      </div>
+      <div class="kpi-tile">
+        <span class="kpi-label">Próxima chegada</span>
+        <span class="kpi-value">15/08/2026</span>
+      </div>
+      <div class="kpi-tile kpi-confirm" id="kpi-confirm-MA" data-total="3">
+        <span class="kpi-label">Confirmadas pelo CD</span>
+        <span class="kpi-value"><span class="kpi-confirm-num">0</span>/3</span>
+      </div>
+    </div>
+    
+    <section class="day-block status-passado">
+      <div class="day-head">
+        <div class="day-title">
+          <span class="day-date">Quarta-feira, 05 de agosto de 2026</span>
+          <span class="badge badge-passado">Data já passada</span>
+        </div>
+        <div class="day-kpis">
+          <span class="confirm-count" data-day-total="1">0/1 confirmadas</span>
+          <span class="dot">&middot;</span>
+          <span>1 carga</span>
+        </div>
+      </div>
+      <div class="table-scroll">
+      <table class="carga-table">
+        <thead>
+          <tr>
+            <th class="col-forn">Fornecedor</th>
+            <th class="col-carga">NF / Carga / Romaneio</th>
+            <th class="col-dpto">Departamento</th>
+            <th class="col-recebido">Recebido</th>
+          </tr>
+        </thead>
+        <tbody>
+          
+        <tr class="" data-row-id="54dd6f5c97ab">
+          <td class="col-forn">Topazio</td>
+          <td class="col-carga">Carga 57</td>
+          <td class="col-dpto">MOVEIS</td>
+          <td class="col-recebido">
+            <label class="chk-label">
+              <input type="checkbox" class="chk-recebido" 
+                data-id="54dd6f5c97ab" data-initial="0"
+                data-cd="MA" data-data="2026-08-05"
+                data-forn="Topazio" data-carga="Carga 57"
+                onchange="onToggleRecebido(this)">
+              <span>Recebido</span>
+            </label>
+            
+          </td>
+        </tr>
+        </tbody>
+      </table>
+      </div>
+    </section>
+
+    <section class="day-block status-passado">
+      <div class="day-head">
+        <div class="day-title">
+          <span class="day-date">Sexta-feira, 07 de agosto de 2026</span>
+          <span class="badge badge-passado">Data já passada</span>
+        </div>
+        <div class="day-kpis">
+          <span class="confirm-count" data-day-total="1">0/1 confirmadas</span>
+          <span class="dot">&middot;</span>
+          <span>1 carga</span>
+        </div>
+      </div>
+      <div class="table-scroll">
+      <table class="carga-table">
+        <thead>
+          <tr>
+            <th class="col-forn">Fornecedor</th>
+            <th class="col-carga">NF / Carga / Romaneio</th>
+            <th class="col-dpto">Departamento</th>
+            <th class="col-recebido">Recebido</th>
+          </tr>
+        </thead>
+        <tbody>
+          
+        <tr class="" data-row-id="302bb53cc02b">
+          <td class="col-forn">Topazio</td>
+          <td class="col-carga">Carga 58</td>
+          <td class="col-dpto">MOVEIS</td>
+          <td class="col-recebido">
+            <label class="chk-label">
+              <input type="checkbox" class="chk-recebido" 
+                data-id="302bb53cc02b" data-initial="0"
+                data-cd="MA" data-data="2026-08-07"
+                data-forn="Topazio" data-carga="Carga 58"
+                onchange="onToggleRecebido(this)">
+              <span>Recebido</span>
+            </label>
+            
+          </td>
+        </tr>
+        </tbody>
+      </table>
+      </div>
+    </section>
+
+    <section class="day-block status-futuro">
+      <div class="day-head">
+        <div class="day-title">
+          <span class="day-date">Sábado, 15 de agosto de 2026</span>
+          <span class="badge badge-futuro">Programado</span>
+        </div>
+        <div class="day-kpis">
+          <span class="confirm-count" data-day-total="1">0/1 confirmadas</span>
+          <span class="dot">&middot;</span>
+          <span>1 carga</span>
+        </div>
+      </div>
+      <div class="table-scroll">
+      <table class="carga-table">
+        <thead>
+          <tr>
+            <th class="col-forn">Fornecedor</th>
+            <th class="col-carga">NF / Carga / Romaneio</th>
+            <th class="col-dpto">Departamento</th>
+            <th class="col-recebido">Recebido</th>
+          </tr>
+        </thead>
+        <tbody>
+          
+        <tr class="" data-row-id="2fab62a97bef">
+          <td class="col-forn">Mondial</td>
+          <td class="col-carga">NFs 330695 1009248 1009554 1016894 1017552 1018444 1025514 1026624 1031039 1031040</td>
+          <td class="col-dpto">PORTATEIS</td>
+          <td class="col-recebido">
+            <label class="chk-label">
+              <input type="checkbox" class="chk-recebido" 
+                data-id="2fab62a97bef" data-initial="0"
+                data-cd="MA" data-data="2026-08-15"
+                data-forn="Mondial" data-carga="NFs 330695 1009248 1009554 1016894 1017552 1018444 1025514 1026624 1031039 1031040"
+                onchange="onToggleRecebido(this)">
+              <span>Recebido</span>
+            </label>
+            
+          </td>
+        </tr>
+        </tbody>
+      </table>
+      </div>
+    </section>
+  </div>
+
+  <div class="cd-panel" id="panel-PA" style="display:none">
+    <div class="kpi-row">
+      <div class="kpi-tile">
+        <span class="kpi-label">Cargas programadas</span>
+        <span class="kpi-value">3</span>
+      </div>
+      <div class="kpi-tile">
+        <span class="kpi-label">Fornecedores distintos</span>
+        <span class="kpi-value">3</span>
+      </div>
+      <div class="kpi-tile">
+        <span class="kpi-label">Próxima chegada</span>
+        <span class="kpi-value">12/08/2026</span>
+      </div>
+      <div class="kpi-tile kpi-confirm" id="kpi-confirm-PA" data-total="3">
+        <span class="kpi-label">Confirmadas pelo CD</span>
+        <span class="kpi-value"><span class="kpi-confirm-num">0</span>/3</span>
+      </div>
+    </div>
+    
+    <section class="day-block status-passado">
+      <div class="day-head">
+        <div class="day-title">
+          <span class="day-date">Quarta-feira, 05 de agosto de 2026</span>
+          <span class="badge badge-passado">Data já passada</span>
+        </div>
+        <div class="day-kpis">
+          <span class="confirm-count" data-day-total="1">0/1 confirmadas</span>
+          <span class="dot">&middot;</span>
+          <span>1 carga</span>
+        </div>
+      </div>
+      <div class="table-scroll">
+      <table class="carga-table">
+        <thead>
+          <tr>
+            <th class="col-forn">Fornecedor</th>
+            <th class="col-carga">NF / Carga / Romaneio</th>
+            <th class="col-dpto">Departamento</th>
+            <th class="col-recebido">Recebido</th>
+          </tr>
+        </thead>
+        <tbody>
+          
+        <tr class="" data-row-id="d532bb211c9f">
+          <td class="col-forn">Topazio</td>
+          <td class="col-carga">Carga 56</td>
+          <td class="col-dpto">MOVEIS</td>
+          <td class="col-recebido">
+            <label class="chk-label">
+              <input type="checkbox" class="chk-recebido" 
+                data-id="d532bb211c9f" data-initial="0"
+                data-cd="PA" data-data="2026-08-05"
+                data-forn="Topazio" data-carga="Carga 56"
+                onchange="onToggleRecebido(this)">
+              <span>Recebido</span>
+            </label>
+            
+          </td>
+        </tr>
+        </tbody>
+      </table>
+      </div>
+    </section>
+
+    <section class="day-block status-futuro">
+      <div class="day-head">
+        <div class="day-title">
+          <span class="day-date">Quarta-feira, 12 de agosto de 2026</span>
+          <span class="badge badge-futuro">Programado</span>
+        </div>
+        <div class="day-kpis">
+          <span class="confirm-count" data-day-total="1">0/1 confirmadas</span>
+          <span class="dot">&middot;</span>
+          <span>1 carga</span>
+        </div>
+      </div>
+      <div class="table-scroll">
+      <table class="carga-table">
+        <thead>
+          <tr>
+            <th class="col-forn">Fornecedor</th>
+            <th class="col-carga">NF / Carga / Romaneio</th>
+            <th class="col-dpto">Departamento</th>
+            <th class="col-recebido">Recebido</th>
+          </tr>
+        </thead>
+        <tbody>
+          
+        <tr class="" data-row-id="8ce440a5d4de">
+          <td class="col-forn">Electrolux</td>
+          <td class="col-carga">Carga 15645443</td>
+          <td class="col-dpto">PORTATEIS</td>
+          <td class="col-recebido">
+            <label class="chk-label">
+              <input type="checkbox" class="chk-recebido" 
+                data-id="8ce440a5d4de" data-initial="0"
+                data-cd="PA" data-data="2026-08-12"
+                data-forn="Electrolux" data-carga="Carga 15645443"
+                onchange="onToggleRecebido(this)">
+              <span>Recebido</span>
+            </label>
+            
+          </td>
+        </tr>
+        </tbody>
+      </table>
+      </div>
+    </section>
+
+    <section class="day-block status-futuro">
+      <div class="day-head">
+        <div class="day-title">
+          <span class="day-date">Segunda-feira, 17 de agosto de 2026</span>
+          <span class="badge badge-futuro">Programado</span>
+        </div>
+        <div class="day-kpis">
+          <span class="confirm-count" data-day-total="1">0/1 confirmadas</span>
+          <span class="dot">&middot;</span>
+          <span>1 carga</span>
+        </div>
+      </div>
+      <div class="table-scroll">
+      <table class="carga-table">
+        <thead>
+          <tr>
+            <th class="col-forn">Fornecedor</th>
+            <th class="col-carga">NF / Carga / Romaneio</th>
+            <th class="col-dpto">Departamento</th>
+            <th class="col-recebido">Recebido</th>
+          </tr>
+        </thead>
+        <tbody>
+          
+        <tr class="" data-row-id="9f99efcf579a">
+          <td class="col-forn">Mondial</td>
+          <td class="col-carga">NFs 39284 330702 1016518 1016519 1017553 1031037 1031038 1031041</td>
+          <td class="col-dpto">PORTATEIS</td>
+          <td class="col-recebido">
+            <label class="chk-label">
+              <input type="checkbox" class="chk-recebido" 
+                data-id="9f99efcf579a" data-initial="0"
+                data-cd="PA" data-data="2026-08-17"
+                data-forn="Mondial" data-carga="NFs 39284 330702 1016518 1016519 1017553 1031037 1031038 1031041"
+                onchange="onToggleRecebido(this)">
+              <span>Recebido</span>
+            </label>
+            
+          </td>
+        </tr>
+        </tbody>
+      </table>
+      </div>
+    </section>
+  </div>
+  <div class="cd-panel" id="panel-ATUALIZAR" style="display:none">
+    <div class="update-box">
+      <h2>Atualizar dados do cronograma</h2>
+      <p>Selecione uma versão mais recente da planilha <strong>Compras BD.xlsx</strong> para atualizar o
+      cronograma direto aqui, sem precisar pedir uma nova geração. O processamento acontece só neste
+      navegador — o arquivo não é enviado para nenhum servidor.</p>
+
+      <div class="update-field">
+        <label for="input-planilha">Planilha Compras BD (.xlsx)</label>
+        <input type="file" id="input-planilha" accept=".xlsx">
+      </div>
+
+      <div class="update-field">
+        <label for="input-confirmacoes">Importar confirmações de recebimento já exportadas (opcional)</label>
+        <input type="file" id="input-confirmacoes" accept=".json" multiple>
+      </div>
+
+      <div class="update-field">
+        <label for="input-data-ref">Considerar "mês corrente" a partir de</label>
+        <input type="date" id="input-data-ref">
+      </div>
+
+      <button type="button" id="btn-processar" onclick="processarPlanilha()">Processar planilha</button>
+
+      <div id="update-status" class="update-status"></div>
+
+      <p class="update-note">Importante: essa atualização só vale enquanto esta página estiver aberta neste
+      navegador — ao fechar ou recarregar, ela volta para os dados com que o arquivo foi gerado. Se houver
+      confirmações "Recebido" ainda não baixadas, baixe-as antes de importar uma nova planilha, senão elas
+      são substituídas pela leitura da nova base (as já confirmadas anteriormente continuam marcadas).</p>
+    </div>
+  </div>
+
+  <div id="avisos-container">
+    <details class="avisos">
+      <summary>2 observação(ões) sobre os dados</summary>
+      <ul><li>14 registro(s) sem data válida foram ignorados.</li><li>2 registro(s) com CD não mapeado (&#x27;PI&#x27;) foram ignorados — apenas GO, MA e PA têm depara definido.</li></ul>
+    </details></div>
+
+  <footer>
+    Fonte de dados: aba "Retorno Email" da planilha Compras BD (nível carga/fornecedor). Departamentos de acordo com o depara da aba "Dados".
+    Este arquivo é gerado automaticamente pelo script gerar_cronograma_cds.py — para atualizar, rode o script novamente com uma versão mais recente da planilha.
+    Marcações de "Recebido" feitas aqui só ficam salvas neste navegador enquanto a página estiver aberta — use o botão "Baixar confirmações" e envie o arquivo para quem gera o cronograma, para que a confirmação vire oficial na próxima atualização.
+  </footer>
+</div>
+
+<script>
+window.__CONFIRM_STORE_INICIAL__ = {};
+
+function mostrarCD(cd) {
+  document.querySelectorAll('.cd-panel').forEach(function(p) { p.style.display = 'none'; });
+  document.querySelectorAll('.tab-btn').forEach(function(b) { b.classList.remove('active'); });
+  document.getElementById('panel-' + cd).style.display = 'block';
+  document.querySelector('.tab-btn[data-cd="' + cd + '"]').classList.add('active');
+}
+
+function contarMudancas() {
+  var n = 0;
+  document.querySelectorAll('input.chk-recebido').forEach(function(chk) {
+    if (String(chk.checked ? 1 : 0) !== String(chk.dataset.initial)) n++;
+  });
+  document.getElementById('contador-mudancas').textContent = n;
+}
+
+function atualizarContadoresCD(cd) {
+  var total = 0, confirmadas = 0;
+  document.querySelectorAll('#panel-' + cd + ' input.chk-recebido').forEach(function(chk) {
+    total++;
+    if (chk.checked) confirmadas++;
+  });
+  var tile = document.getElementById('kpi-confirm-' + cd);
+  if (tile) {
+    var num = tile.querySelector('.kpi-confirm-num');
+    if (num) num.textContent = confirmadas;
+  }
+}
+
+function atualizarContadorDia(tr) {
+  var section = tr.closest('.day-block');
+  if (!section) return;
+  var span = section.querySelector('.confirm-count');
+  if (!span) return;
+  var total = parseInt(span.dataset.dayTotal, 10) || 0;
+  var confirmadas = section.querySelectorAll('input.chk-recebido:checked').length;
+  span.textContent = confirmadas + '/' + total + ' confirmadas';
+}
+
+function atualizarContadorGeral() {
+  var total = document.querySelectorAll('input.chk-recebido').length;
+  var confirmadas = document.querySelectorAll('input.chk-recebido:checked').length;
+  var el = document.getElementById('kpi-confirm-total');
+  if (el) el.textContent = confirmadas;
+}
+
+function onToggleRecebido(chk) {
+  var tr = chk.closest('tr');
+  if (tr) tr.classList.toggle('row-confirmada', chk.checked);
+  atualizarContadoresCD(chk.dataset.cd);
+  if (tr) atualizarContadorDia(tr);
+  atualizarContadorGeral();
+  contarMudancas();
+}
+
+function baixarConfirmacoes() {
+  var nome = document.getElementById('nome-responsavel').value.trim();
+  var mudancas = [];
+  document.querySelectorAll('input.chk-recebido').forEach(function(chk) {
+    var atual = chk.checked ? 1 : 0;
+    if (String(atual) !== String(chk.dataset.initial)) {
+      mudancas.push({
+        id: chk.dataset.id,
+        cd: chk.dataset.cd,
+        data: chk.dataset.data,
+        fornecedor: chk.dataset.forn,
+        carga: chk.dataset.carga,
+        confirmado: atual === 1,
+        confirmado_em: new Date().toISOString(),
+        confirmado_por: nome || null
+      });
+    }
+  });
+  if (mudancas.length === 0) {
+    alert('Nenhuma alteração para exportar ainda. Marque ao menos uma carga como recebida (ou desmarque uma confirmação existente) antes de baixar.');
+    return;
+  }
+  var blob = new Blob([JSON.stringify(mudancas, null, 2)], {type: 'application/json'});
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  var agora = new Date();
+  var carimbo = agora.toISOString().slice(0,10) + '-' + String(agora.getHours()).padStart(2,'0') + String(agora.getMinutes()).padStart(2,'0');
+  a.href = url;
+  a.download = 'confirmacoes_' + carimbo + '.json';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+contarMudancas();
+
+// ---------------------------------------------------------------------------
+// Importação de planilha diretamente no navegador (aba "Atualizar dados")
+// ---------------------------------------------------------------------------
+var CD_DEPARA_JS = {
+  GO: {codigo: '515', nome: '515 - GO'},
+  MA: {codigo: '540', nome: '540 - MA'},
+  PA: {codigo: '547', nome: '547 - PA'}
+};
+var CD_ORDEM_JS = ['GO', 'MA', 'PA'];
+var MESES_PT_JS = ["janeiro","fevereiro","março","abril","maio","junho","julho","agosto","setembro","outubro","novembro","dezembro"];
+var DIAS_SEMANA_PT_JS = ["segunda-feira","terça-feira","quarta-feira","quinta-feira","sexta-feira","sábado","domingo"];
+var confirmStore = Object.assign({}, window.__CONFIRM_STORE_INICIAL__ || {});
+
+function pad2(n) { return String(n).padStart(2, '0'); }
+
+function ymd(d) { return d.getUTCFullYear() + '-' + pad2(d.getUTCMonth() + 1) + '-' + pad2(d.getUTCDate()); }
+
+function fmtDataCurtaJS(d) { return pad2(d.getUTCDate()) + '/' + pad2(d.getUTCMonth() + 1) + '/' + d.getUTCFullYear(); }
+
+function weekdayUTC(d) { var js = d.getUTCDay(); return (js + 6) % 7; }
+
+function fmtDataLongaJS(d) {
+  var dia = DIAS_SEMANA_PT_JS[weekdayUTC(d)];
+  return dia.charAt(0).toUpperCase() + dia.slice(1) + ', ' + pad2(d.getUTCDate()) + ' de ' + MESES_PT_JS[d.getUTCMonth()] + ' de ' + d.getUTCFullYear();
+}
+
+function escHtml(s) {
+  return String(s).replace(/[&<>"']/g, function(c) {
+    return {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c];
+  });
+}
+
+function sha1Hex(msg) {
+  function rotl(n, s) { return (n << s) | (n >>> (32 - s)); }
+  var utf8 = unescape(encodeURIComponent(msg));
+  var bytes = [];
+  for (var i = 0; i < utf8.length; i++) bytes.push(utf8.charCodeAt(i));
+  var ml = bytes.length * 8;
+  bytes.push(0x80);
+  while (bytes.length % 64 !== 56) bytes.push(0);
+  for (var i2 = 7; i2 >= 0; i2--) bytes.push(Math.floor(ml / Math.pow(2, i2 * 8)) & 0xff);
+  var h0 = 0x67452301, h1 = 0xEFCDAB89, h2 = 0x98BADCFE, h3 = 0x10325476, h4 = 0xC3D2E1F0;
+  for (var chunkStart = 0; chunkStart < bytes.length; chunkStart += 64) {
+    var w = new Array(80).fill(0);
+    for (var i3 = 0; i3 < 16; i3++) {
+      w[i3] = (bytes[chunkStart + i3 * 4] << 24) | (bytes[chunkStart + i3 * 4 + 1] << 16) | (bytes[chunkStart + i3 * 4 + 2] << 8) | (bytes[chunkStart + i3 * 4 + 3]);
+    }
+    for (var i4 = 16; i4 < 80; i4++) w[i4] = rotl(w[i4 - 3] ^ w[i4 - 8] ^ w[i4 - 14] ^ w[i4 - 16], 1);
+    var a = h0, b = h1, c = h2, d = h3, e = h4;
+    for (var i5 = 0; i5 < 80; i5++) {
+      var f, k;
+      if (i5 < 20) { f = (b & c) | (~b & d); k = 0x5A827999; }
+      else if (i5 < 40) { f = b ^ c ^ d; k = 0x6ED9EBA1; }
+      else if (i5 < 60) { f = (b & c) | (b & d) | (c & d); k = 0x8F1BBCDC; }
+      else { f = b ^ c ^ d; k = 0xCA62C1D6; }
+      var temp = (rotl(a, 5) + f + e + k + w[i5]) >>> 0;
+      e = d; d = c; c = rotl(b, 30); b = a; a = temp;
+    }
+    h0 = (h0 + a) >>> 0; h1 = (h1 + b) >>> 0; h2 = (h2 + c) >>> 0; h3 = (h3 + d) >>> 0; h4 = (h4 + e) >>> 0;
+  }
+  function toHex(n) { return ('00000000' + (n >>> 0).toString(16)).slice(-8); }
+  return toHex(h0) + toHex(h1) + toHex(h2) + toHex(h3) + toHex(h4);
+}
+
+function makeRowIdJS(cd, dataIso, fornecedor, carga) {
+  var chave = (cd + '|' + dataIso + '|' + fornecedor + '|' + carga).toLowerCase();
+  return sha1Hex(chave).slice(0, 12);
+}
+
+function setStatus(msg, kind) {
+  var el = document.getElementById('update-status');
+  el.textContent = msg;
+  el.className = 'update-status' + (kind ? ' ' + kind : '');
+}
+
+function buildDeptMapJS(wb) {
+  var map = {};
+  if (!wb.Sheets['Dados']) return map;
+  var rows = XLSX.utils.sheet_to_json(wb.Sheets['Dados'], {header: 1, defval: null});
+  if (!rows.length) return map;
+  var header = rows[0].map(function(h) { return h == null ? '' : String(h).trim(); });
+  var iCod = header.indexOf('Departamento');
+  var iNome = header.indexOf('Nome Departamento');
+  if (iCod === -1 || iNome === -1) return map;
+  for (var r = 1; r < rows.length; r++) {
+    var row = rows[r];
+    var cod = row[iCod];
+    var nome = row[iNome];
+    if (cod != null && nome != null && !(cod in map)) map[cod] = String(nome).trim();
+  }
+  return map;
+}
+
+function parseWorkbookToCargasJS(wb, mesInicio) {
+  var sheet = wb.Sheets['Retorno Email'];
+  if (!sheet) throw new Error('Aba "Retorno Email" não encontrada na planilha.');
+  var deptMap = buildDeptMapJS(wb);
+  var rows = XLSX.utils.sheet_to_json(sheet, {header: 1, defval: null, raw: true});
+  if (!rows.length) throw new Error('Aba "Retorno Email" está vazia.');
+  var header = rows[0].map(function(h) { return h == null ? '' : String(h).trim(); });
+  var precisa = ['CD', 'DATA', 'DPTO', 'FORNECEDOR', 'NF, CARGA OU ROMANEIO'];
+  for (var n = 0; n < precisa.length; n++) {
+    if (header.indexOf(precisa[n]) === -1) throw new Error('Coluna obrigatória não encontrada: "' + precisa[n] + '"');
+  }
+  var iCd = header.indexOf('CD');
+  var iData = header.indexOf('DATA');
+  var iDpto = header.indexOf('DPTO');
+  var iForn = header.indexOf('FORNECEDOR');
+  var iCarga = header.indexOf('NF, CARGA OU ROMANEIO');
+
+  var cargas = [];
+  var ignoradasCd = {};
+  var ignoradasSemData = 0;
+  var ignoradasForaPeriodo = 0;
+
+  for (var r = 1; r < rows.length; r++) {
+    var row = rows[r];
+    if (!row || (row[iCd] == null && row[iData] == null)) continue;
+    var cdRaw = (row[iCd] == null ? '' : String(row[iCd]).trim().toUpperCase());
+    if (!(cdRaw in CD_DEPARA_JS)) {
+      var key = cdRaw || '(vazio)';
+      ignoradasCd[key] = (ignoradasCd[key] || 0) + 1;
+      continue;
+    }
+    var rawData = row[iData];
+    if (!(rawData instanceof Date) || isNaN(rawData.getTime())) { ignoradasSemData++; continue; }
+    var d = new Date(Date.UTC(rawData.getUTCFullYear(), rawData.getUTCMonth(), rawData.getUTCDate()));
+    if (d.getTime() < mesInicio.getTime()) { ignoradasForaPeriodo++; continue; }
+
+    var dptoCod = row[iDpto];
+    var dptoNome = (dptoCod != null && deptMap[dptoCod]) ? deptMap[dptoCod] : (dptoCod != null ? ('Depto ' + dptoCod) : 'Não informado');
+    var fornecedor = (row[iForn] == null ? '' : String(row[iForn]).trim()) || 'Fornecedor não informado';
+    var cargaTxt = (row[iCarga] == null ? '' : String(row[iCarga]).trim()) || '-';
+    var dataIso = ymd(d);
+    cargas.push({
+      cd: cdRaw, data: d, dataIso: dataIso, dpto: dptoNome,
+      fornecedor: fornecedor, carga: cargaTxt,
+      id: makeRowIdJS(cdRaw, dataIso, fornecedor, cargaTxt)
+    });
+  }
+  return {cargas: cargas, meta: {ignoradasCd: ignoradasCd, ignoradasSemData: ignoradasSemData, ignoradasForaPeriodo: ignoradasForaPeriodo, mesInicio: mesInicio}};
+}
+
+function montarEstruturaJS(cargas, hoje) {
+  cargas.forEach(function(c) {
+    var entry = confirmStore[c.id];
+    c.confirmado = !!(entry && entry.confirmado);
+    c.confirmado_por = entry ? entry.confirmado_por : null;
+    c.confirmado_em = entry ? entry.confirmado_em : null;
+  });
+  var porCd = {};
+  CD_ORDEM_JS.forEach(function(uf) { porCd[uf] = {}; });
+  cargas.forEach(function(c) {
+    var bucket = porCd[c.cd];
+    (bucket[c.dataIso] = bucket[c.dataIso] || []).push(c);
+  });
+  var hojeIso = ymd(hoje);
+  var estrutura = {};
+  CD_ORDEM_JS.forEach(function(uf) {
+    var datasIso = Object.keys(porCd[uf]).sort();
+    var totalCargas = 0, totalConfirmadas = 0;
+    var fornecedores = {};
+    datasIso.forEach(function(k) {
+      porCd[uf][k].forEach(function(c) {
+        totalCargas++;
+        if (c.confirmado) totalConfirmadas++;
+        fornecedores[c.fornecedor] = true;
+      });
+    });
+    var proximaIso = datasIso.filter(function(k) { return k >= hojeIso; })[0] || null;
+    var dias = datasIso.map(function(k) {
+      var lst = porCd[uf][k].slice().sort(function(a, b) {
+        var fa = a.fornecedor.toLowerCase(), fb = b.fornecedor.toLowerCase();
+        if (fa !== fb) return fa < fb ? -1 : 1;
+        var ca = a.carga.toLowerCase(), cb = b.carga.toLowerCase();
+        return ca < cb ? -1 : (ca > cb ? 1 : 0);
+      });
+      return {
+        data: lst[0].data, dataIso: k, cargas: lst,
+        total_cargas: lst.length,
+        total_confirmadas: lst.filter(function(c) { return c.confirmado; }).length
+      };
+    });
+    estrutura[uf] = {
+      dias: dias, total_cargas: totalCargas, total_confirmadas: totalConfirmadas,
+      total_fornecedores: Object.keys(fornecedores).length,
+      proxima_chegada: proximaIso ? new Date(proximaIso + 'T00:00:00Z') : null
+    };
+  });
+  return estrutura;
+}
+
+function renderTabelaDiaJS(dia, uf) {
+  return dia.cargas.map(function(c) {
+    var checked = c.confirmado ? 'checked' : '';
+    var initial = c.confirmado ? '1' : '0';
+    var rowCls = c.confirmado ? 'row-confirmada' : '';
+    var nota = '';
+    if (c.confirmado && (c.confirmado_por || c.confirmado_em)) {
+      var quem = c.confirmado_por ? escHtml(c.confirmado_por) : 'responsável do CD';
+      var quando = c.confirmado_em ? escHtml(String(c.confirmado_em).slice(0, 10)) : '';
+      nota = '<div class="confirm-nota">por ' + quem + (quando ? ' em ' + quando : '') + '</div>';
+    }
+    return '\n        <tr class="' + rowCls + '" data-row-id="' + escHtml(c.id) + '">' +
+      '\n          <td class="col-forn">' + escHtml(c.fornecedor) + '</td>' +
+      '\n          <td class="col-carga">' + escHtml(c.carga) + '</td>' +
+      '\n          <td class="col-dpto">' + escHtml(c.dpto) + '</td>' +
+      '\n          <td class="col-recebido">' +
+      '\n            <label class="chk-label">' +
+      '\n              <input type="checkbox" class="chk-recebido" ' + checked +
+      '\n                data-id="' + escHtml(c.id) + '" data-initial="' + initial + '"' +
+      '\n                data-cd="' + escHtml(uf) + '" data-data="' + escHtml(c.dataIso) + '"' +
+      '\n                data-forn="' + escHtml(c.fornecedor) + '" data-carga="' + escHtml(c.carga) + '"' +
+      '\n                onchange="onToggleRecebido(this)">' +
+      '\n              <span>Recebido</span>' +
+      '\n            </label>' +
+      '\n            ' + nota +
+      '\n          </td>' +
+      '\n        </tr>';
+  }).join('\n');
+}
+
+function renderDiaJS(dia, uf, hoje) {
+  var hojeIso = ymd(hoje);
+  var status = dia.dataIso === hojeIso ? 'hoje' : (dia.dataIso > hojeIso ? 'futuro' : 'passado');
+  var statusLabel = {hoje: 'Hoje', futuro: 'Programado', passado: 'Data já passada'}[status];
+  return '\n    <section class="day-block status-' + status + '">' +
+    '\n      <div class="day-head">' +
+    '\n        <div class="day-title">' +
+    '\n          <span class="day-date">' + escHtml(fmtDataLongaJS(dia.data)) + '</span>' +
+    '\n          <span class="badge badge-' + status + '">' + statusLabel + '</span>' +
+    '\n        </div>' +
+    '\n        <div class="day-kpis">' +
+    '\n          <span class="confirm-count" data-day-total="' + dia.total_cargas + '">' + dia.total_confirmadas + '/' + dia.total_cargas + ' confirmadas</span>' +
+    '\n          <span class="dot">&middot;</span>' +
+    '\n          <span>' + dia.total_cargas + ' carga' + (dia.total_cargas !== 1 ? 's' : '') + '</span>' +
+    '\n        </div>' +
+    '\n      </div>' +
+    '\n      <div class="table-scroll">' +
+    '\n      <table class="carga-table">' +
+    '\n        <thead>' +
+    '\n          <tr>' +
+    '\n            <th class="col-forn">Fornecedor</th>' +
+    '\n            <th class="col-carga">NF / Carga / Romaneio</th>' +
+    '\n            <th class="col-dpto">Departamento</th>' +
+    '\n            <th class="col-recebido">Recebido</th>' +
+    '\n          </tr>' +
+    '\n        </thead>' +
+    '\n        <tbody>' +
+    renderTabelaDiaJS(dia, uf) +
+    '\n        </tbody>' +
+    '\n      </table>' +
+    '\n      </div>' +
+    '\n    </section>';
+}
+
+function renderPanelBodyJS(uf, dados) {
+  var proximaTxt = dados.proxima_chegada ? fmtDataCurtaJS(dados.proxima_chegada) : 'sem chegadas programadas';
+  var diasHtml = dados.dias.length ? dados.dias.map(function(d) { return renderDiaJS(d, uf, window.__HOJE_ATUAL__); }).join('\n')
+    : '<p class="empty-state">Nenhuma carga registrada para este CD no período selecionado.</p>';
+  return '\n    <div class="kpi-row">' +
+    '\n      <div class="kpi-tile">' +
+    '\n        <span class="kpi-label">Cargas programadas</span>' +
+    '\n        <span class="kpi-value">' + dados.total_cargas + '</span>' +
+    '\n      </div>' +
+    '\n      <div class="kpi-tile">' +
+    '\n        <span class="kpi-label">Fornecedores distintos</span>' +
+    '\n        <span class="kpi-value">' + dados.total_fornecedores + '</span>' +
+    '\n      </div>' +
+    '\n      <div class="kpi-tile">' +
+    '\n        <span class="kpi-label">Próxima chegada</span>' +
+    '\n        <span class="kpi-value">' + escHtml(proximaTxt) + '</span>' +
+    '\n      </div>' +
+    '\n      <div class="kpi-tile kpi-confirm" id="kpi-confirm-' + uf + '" data-total="' + dados.total_cargas + '">' +
+    '\n        <span class="kpi-label">Confirmadas pelo CD</span>' +
+    '\n        <span class="kpi-value"><span class="kpi-confirm-num">' + dados.total_confirmadas + '</span>/' + dados.total_cargas + '</span>' +
+    '\n      </div>' +
+    '\n    </div>' +
+    diasHtml;
+}
+
+function renderAvisosJS(meta) {
+  var avisos = [];
+  if (meta.ignoradasSemData) avisos.push(meta.ignoradasSemData + ' registro(s) sem data válida foram ignorados.');
+  Object.keys(meta.ignoradasCd).forEach(function(cd) {
+    if (cd) avisos.push(meta.ignoradasCd[cd] + " registro(s) com CD não mapeado ('" + cd + "') foram ignorados — apenas GO, MA e PA têm depara definido.");
+  });
+  var container = document.getElementById('avisos-container');
+  if (!avisos.length) { container.innerHTML = ''; return; }
+  container.innerHTML = '<details class="avisos"><summary>' + avisos.length + ' observação(ões) sobre os dados</summary><ul>' +
+    avisos.map(function(a) { return '<li>' + escHtml(a) + '</li>'; }).join('') + '</ul></details>';
+}
+
+function computeHojeEMesInicio() {
+  var input = document.getElementById('input-data-ref');
+  var y, m, dd;
+  if (input && input.value) {
+    var parts = input.value.split('-').map(Number);
+    y = parts[0]; m = parts[1] - 1; dd = parts[2];
+  } else {
+    var now = new Date();
+    y = now.getFullYear(); m = now.getMonth(); dd = now.getDate();
+  }
+  return {hoje: new Date(Date.UTC(y, m, dd)), mesInicio: new Date(Date.UTC(y, m, 1))};
+}
+
+function mergeConfirmacoesJS(parsed) {
+  var registros = Array.isArray(parsed) ? parsed : Object.keys(parsed).map(function(id) { return Object.assign({id: id}, parsed[id]); });
+  registros.forEach(function(r) {
+    if (!r || !r.id) return;
+    confirmStore[r.id] = {
+      confirmado: !!r.confirmado,
+      confirmado_por: r.confirmado_por || null,
+      confirmado_em: r.confirmado_em || null
+    };
+  });
+}
+
+function aplicarNovosDadosJS(estrutura, meta, hoje, fonteNome) {
+  window.__HOJE_ATUAL__ = hoje;
+  CD_ORDEM_JS.forEach(function(uf) {
+    document.getElementById('panel-' + uf).innerHTML = renderPanelBodyJS(uf, estrutura[uf]);
+  });
+  var totalCargas = 0, totalConfirmadas = 0;
+  CD_ORDEM_JS.forEach(function(uf) { totalCargas += estrutura[uf].total_cargas; totalConfirmadas += estrutura[uf].total_confirmadas; });
+  document.getElementById('overview-total-cargas').textContent = totalCargas;
+  document.getElementById('kpi-confirm-total').textContent = totalConfirmadas;
+  document.getElementById('overview-total-den').textContent = totalCargas;
+  var agora = new Date();
+  var geradoEm = pad2(agora.getDate()) + '/' + pad2(agora.getMonth() + 1) + '/' + agora.getFullYear() + ' às ' + pad2(agora.getHours()) + ':' + pad2(agora.getMinutes());
+  document.getElementById('page-subtitle').textContent =
+    'Gerado em ' + geradoEm + ' a partir de "' + fonteNome + '" (importado neste navegador) · Período: ' + fmtDataCurtaJS(meta.mesInicio) + ' em diante · Depara: CD 515 = GO · CD 540 = MA · CD 547 = PA';
+  renderAvisosJS(meta);
+  contarMudancas();
+}
+
+async function processarPlanilha() {
+  var fileInput = document.getElementById('input-planilha');
+  var file = fileInput.files && fileInput.files[0];
+  if (!file) { setStatus('Selecione o arquivo Compras BD.xlsx antes de processar.', 'error'); return; }
+  if (typeof XLSX === 'undefined') {
+    setStatus('Não foi possível carregar a biblioteca de leitura de planilhas (sem conexão com a internet?). Tente novamente com conexão ativa.', 'error');
+    return;
+  }
+  setStatus('Lendo "' + file.name + '"...', 'info');
+  var btn = document.getElementById('btn-processar');
+  btn.disabled = true;
+  try {
+    var confirmFiles = document.getElementById('input-confirmacoes').files;
+    for (var i = 0; i < confirmFiles.length; i++) {
+      var texto = await confirmFiles[i].text();
+      mergeConfirmacoesJS(JSON.parse(texto));
+    }
+    var buf = await file.arrayBuffer();
+    var wb = XLSX.read(buf, {type: 'array', cellDates: true});
+    var ref = computeHojeEMesInicio();
+    var parsed = parseWorkbookToCargasJS(wb, ref.mesInicio);
+    var estrutura = montarEstruturaJS(parsed.cargas, ref.hoje);
+    aplicarNovosDadosJS(estrutura, parsed.meta, ref.hoje, file.name);
+    mostrarCD('GO');
+    var totalCargas = 0;
+    CD_ORDEM_JS.forEach(function(uf) { totalCargas += estrutura[uf].total_cargas; });
+    setStatus('Pronto! ' + parsed.cargas.length + ' carga(s) dentro do período exibidas (' + totalCargas + ' no total). Navegue pelas abas dos CDs para conferir.', 'ok');
+  } catch (err) {
+    console.error(err);
+    setStatus('Erro ao processar a planilha: ' + err.message, 'error');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+(function() {
+  var input = document.getElementById('input-data-ref');
+  if (input && !input.value) {
+    var now = new Date();
+    input.value = now.getFullYear() + '-' + pad2(now.getMonth() + 1) + '-' + pad2(now.getDate());
+  }
+})();
+</script>
+</body>
+</html>
