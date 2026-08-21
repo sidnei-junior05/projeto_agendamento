@@ -1,8 +1,8 @@
 """Servidor local de teste — SÓ para desenvolvimento, não vai para produção
 (está no .vercelignore). Serve os arquivos estáticos do projeto e roteia
-GET/POST /api/state para a MESMA lógica (api/_handlers.py + api/_store.py)
-que a Vercel Function usa. Lê as credenciais do Upstash de um arquivo .env
-neste diretório (formato CHAVE=valor, uma por linha).
+GET/POST /api/state para a MESMA lógica (api/state.py) que a Vercel Function
+usa. Lê as credenciais do Upstash de um arquivo .env neste diretório
+(formato CHAVE=valor, uma por linha).
 
 Uso: python dev_server.py [porta]  (porta padrão: 8090)
 """
@@ -32,7 +32,7 @@ def load_env_file(path):
 
 load_env_file(os.path.join(BASE_DIR, ".env"))
 
-import _handlers  # noqa: E402  (precisa do sys.path.insert acima)
+import state  # noqa: E402  (precisa do sys.path.insert acima)
 
 
 class DevHandler(SimpleHTTPRequestHandler):
@@ -49,7 +49,7 @@ class DevHandler(SimpleHTTPRequestHandler):
 
     def do_GET(self):
         if self.path == "/api/state":
-            code, payload = _handlers.handle_get()
+            code, payload = state.handle_get()
             self._send_json(code, payload)
             return
         super().do_GET()
@@ -65,7 +65,7 @@ class DevHandler(SimpleHTTPRequestHandler):
         except ValueError:
             self._send_json(400, {"error": "JSON inválido no corpo da requisição"})
             return
-        code, payload = _handlers.handle_post(body)
+        code, payload = state.handle_post(body)
         self._send_json(code, payload)
 
 
