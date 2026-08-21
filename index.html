@@ -94,6 +94,18 @@
   .day-title { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 14px; }
   .day-kpis { font-size: 13px; color: var(--text-secondary); display:flex; gap:6px; align-items:center; }
   .dot { color: var(--text-muted); }
+  .btn-aplicar-dia {
+    font: inherit; font-size: 12.5px; font-weight: 600; padding: 6px 12px; border-radius: 7px;
+    border: 1px solid var(--border); background: var(--surface-1); color: var(--text-secondary); cursor: pointer;
+  }
+  .btn-aplicar-dia:hover { background: var(--page); color: var(--text-primary); }
+  .btn-aplicar-dia:disabled { opacity: 0.5; cursor: default; }
+  .btn-aplicar-dia.btn-revisado-ativo { background: rgba(12,163,12,0.14); color: #0a6e0a; border-color: rgba(12,163,12,0.35); }
+  .badge-revisado { background: rgba(12,163,12,0.14); color: #0a6e0a; }
+  @media (prefers-color-scheme: dark) {
+    .btn-aplicar-dia.btn-revisado-ativo { color: #0ca30c; }
+    .badge-revisado { color: #0ca30c; }
+  }
   .badge { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 999px; }
   .badge-hoje { background: rgba(250,178,25,0.18); color: #9a6a00; }
   .badge-futuro { background: rgba(42,120,214,0.14); color: #1c5cab; }
@@ -109,8 +121,18 @@
   table.carga-table td { padding: 8px 14px; border-bottom: 1px solid var(--gridline); vertical-align: top; }
   table.carga-table tr:last-child td { border-bottom: none; }
   .col-recebido { white-space: nowrap; }
-  .chk-label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; font-size: 13px; user-select: none; }
-  .chk-label input { width: 16px; height: 16px; accent-color: var(--good); cursor: pointer; }
+  .status-select {
+    font: inherit; font-size: 13px; font-weight: 600; padding: 6px 10px; border-radius: 7px;
+    border: 1px solid var(--border); background: var(--surface-1); color: var(--text-secondary); cursor: pointer;
+  }
+  .status-select.status-recebido { background: rgba(12,163,12,0.14); color: #0a6e0a; border-color: rgba(12,163,12,0.35); }
+  .status-select.status-nao_compareceu { background: rgba(214,52,52,0.14); color: #b3261e; border-color: rgba(214,52,52,0.35); }
+  .status-select.status-reagendado { background: rgba(42,120,214,0.14); color: #1c5cab; border-color: rgba(42,120,214,0.35); }
+  @media (prefers-color-scheme: dark) {
+    .status-select.status-recebido { color: #0ca30c; }
+    .status-select.status-nao_compareceu { color: #e5534b; }
+    .status-select.status-reagendado { color: #3987e5; }
+  }
   .confirm-nota { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
   tr.row-confirmada { background: rgba(12,163,12,0.06); }
   .confirm-count { font-weight: 600; }
@@ -148,6 +170,7 @@
   <header class="page-head">
     <h1>Cronograma de Recebimento — Centros de Distribuição</h1>
     <p id="page-subtitle">Gerado em 11/08/2026 às 19:20 a partir de "Compras_BD.xlsx" · Período: 01/08/2026 em diante · Depara: CD 515 = GO · CD 540 = MA · CD 547 = PA</p>
+    <p id="sync-status" class="update-note" style="display:none; margin: 6px 0 0;"></p>
   </header>
 
   <div class="overview">
@@ -163,7 +186,7 @@
 
   <div class="confirm-toolbar">
     <div class="confirm-toolbar-text">
-      <strong>Confirmação de recebimento:</strong> marque "Recebido" nas cargas que já chegaram fisicamente no CD e baixe o arquivo para enviar de volta.
+      <strong>Confirmação de recebimento:</strong> escolha o status de cada carga (Recebido, Não compareceu ou Reagendado) e baixe o arquivo para enviar de volta.
     </div>
     <div class="confirm-toolbar-actions">
       <input type="text" id="nome-responsavel" placeholder="Seu nome (opcional)">
@@ -210,6 +233,7 @@
           <span class="dot">&middot;</span>
           <span>4 cargas</span>
         </div>
+        <button type="button" class="btn-aplicar-dia" onclick="marcarDiaRevisado(this)">Marcar dia como revisado</button>
       </div>
       <div class="table-scroll">
       <table class="carga-table">
@@ -218,7 +242,7 @@
             <th class="col-forn">Fornecedor</th>
             <th class="col-carga">NF / Carga / Romaneio</th>
             <th class="col-dpto">Departamento</th>
-            <th class="col-recebido">Recebido</th>
+            <th class="col-recebido">Status</th>
           </tr>
         </thead>
         <tbody>
@@ -228,15 +252,15 @@
           <td class="col-carga">Carro 01</td>
           <td class="col-dpto">PORTATEIS</td>
           <td class="col-recebido">
-            <label class="chk-label">
-              <input type="checkbox" class="chk-recebido" 
-                data-id="8f4c8e70ff7c" data-initial="0"
-                data-cd="GO" data-data="2026-08-01"
-                data-forn="Mondial" data-carga="Carro 01"
-                onchange="onToggleRecebido(this)">
-              <span>Recebido</span>
-            </label>
-            
+            <select class="status-select status-pendente" data-id="8f4c8e70ff7c" data-status-initial="pendente" data-status-atual="pendente"
+              data-cd="GO" data-data="2026-08-01"
+              data-forn="Mondial" data-carga="Carro 01"
+              onchange="onStatusChange(this)">
+              <option value="pendente" selected>Pendente</option>
+              <option value="recebido">Recebido</option>
+              <option value="nao_compareceu">Não compareceu</option>
+              <option value="reagendado">Reagendado</option>
+            </select>
           </td>
         </tr>
 
@@ -245,15 +269,15 @@
           <td class="col-carga">Carro 02</td>
           <td class="col-dpto">PORTATEIS</td>
           <td class="col-recebido">
-            <label class="chk-label">
-              <input type="checkbox" class="chk-recebido" 
-                data-id="29a3db199691" data-initial="0"
-                data-cd="GO" data-data="2026-08-01"
-                data-forn="Mondial" data-carga="Carro 02"
-                onchange="onToggleRecebido(this)">
-              <span>Recebido</span>
-            </label>
-            
+            <select class="status-select status-pendente" data-id="29a3db199691" data-status-initial="pendente" data-status-atual="pendente"
+              data-cd="GO" data-data="2026-08-01"
+              data-forn="Mondial" data-carga="Carro 02"
+              onchange="onStatusChange(this)">
+              <option value="pendente" selected>Pendente</option>
+              <option value="recebido">Recebido</option>
+              <option value="nao_compareceu">Não compareceu</option>
+              <option value="reagendado">Reagendado</option>
+            </select>
           </td>
         </tr>
 
@@ -262,15 +286,15 @@
           <td class="col-carga">Carga 01</td>
           <td class="col-dpto">MOVEIS</td>
           <td class="col-recebido">
-            <label class="chk-label">
-              <input type="checkbox" class="chk-recebido" 
-                data-id="dfc2115b6bfa" data-initial="0"
-                data-cd="GO" data-data="2026-08-01"
-                data-forn="Moval" data-carga="Carga 01"
-                onchange="onToggleRecebido(this)">
-              <span>Recebido</span>
-            </label>
-            
+            <select class="status-select status-pendente" data-id="dfc2115b6bfa" data-status-initial="pendente" data-status-atual="pendente"
+              data-cd="GO" data-data="2026-08-01"
+              data-forn="Moval" data-carga="Carga 01"
+              onchange="onStatusChange(this)">
+              <option value="pendente" selected>Pendente</option>
+              <option value="recebido">Recebido</option>
+              <option value="nao_compareceu">Não compareceu</option>
+              <option value="reagendado">Reagendado</option>
+            </select>
           </td>
         </tr>
 
@@ -279,15 +303,15 @@
           <td class="col-carga">Carga 02</td>
           <td class="col-dpto">MOVEIS</td>
           <td class="col-recebido">
-            <label class="chk-label">
-              <input type="checkbox" class="chk-recebido" 
-                data-id="6c7fd7513e8f" data-initial="0"
-                data-cd="GO" data-data="2026-08-01"
-                data-forn="Moval" data-carga="Carga 02"
-                onchange="onToggleRecebido(this)">
-              <span>Recebido</span>
-            </label>
-            
+            <select class="status-select status-pendente" data-id="6c7fd7513e8f" data-status-initial="pendente" data-status-atual="pendente"
+              data-cd="GO" data-data="2026-08-01"
+              data-forn="Moval" data-carga="Carga 02"
+              onchange="onStatusChange(this)">
+              <option value="pendente" selected>Pendente</option>
+              <option value="recebido">Recebido</option>
+              <option value="nao_compareceu">Não compareceu</option>
+              <option value="reagendado">Reagendado</option>
+            </select>
           </td>
         </tr>
         </tbody>
@@ -306,6 +330,7 @@
           <span class="dot">&middot;</span>
           <span>5 cargas</span>
         </div>
+        <button type="button" class="btn-aplicar-dia" onclick="marcarDiaRevisado(this)">Marcar dia como revisado</button>
       </div>
       <div class="table-scroll">
       <table class="carga-table">
@@ -314,7 +339,7 @@
             <th class="col-forn">Fornecedor</th>
             <th class="col-carga">NF / Carga / Romaneio</th>
             <th class="col-dpto">Departamento</th>
-            <th class="col-recebido">Recebido</th>
+            <th class="col-recebido">Status</th>
           </tr>
         </thead>
         <tbody>
@@ -324,15 +349,15 @@
           <td class="col-carga">Carro 01</td>
           <td class="col-dpto">MOVEIS</td>
           <td class="col-recebido">
-            <label class="chk-label">
-              <input type="checkbox" class="chk-recebido" 
-                data-id="b1b1171a6b9c" data-initial="0"
-                data-cd="GO" data-data="2026-08-03"
-                data-forn="Artefamol" data-carga="Carro 01"
-                onchange="onToggleRecebido(this)">
-              <span>Recebido</span>
-            </label>
-            
+            <select class="status-select status-pendente" data-id="b1b1171a6b9c" data-status-initial="pendente" data-status-atual="pendente"
+              data-cd="GO" data-data="2026-08-03"
+              data-forn="Artefamol" data-carga="Carro 01"
+              onchange="onStatusChange(this)">
+              <option value="pendente" selected>Pendente</option>
+              <option value="recebido">Recebido</option>
+              <option value="nao_compareceu">Não compareceu</option>
+              <option value="reagendado">Reagendado</option>
+            </select>
           </td>
         </tr>
 
@@ -341,15 +366,15 @@
           <td class="col-carga">CARRO 25</td>
           <td class="col-dpto">BRANCA</td>
           <td class="col-recebido">
-            <label class="chk-label">
-              <input type="checkbox" class="chk-recebido" 
-                data-id="8d658e5df985" data-initial="0"
-                data-cd="GO" data-data="2026-08-03"
-                data-forn="Atlas" data-carga="CARRO 25"
-                onchange="onToggleRecebido(this)">
-              <span>Recebido</span>
-            </label>
-            
+            <select class="status-select status-pendente" data-id="8d658e5df985" data-status-initial="pendente" data-status-atual="pendente"
+              data-cd="GO" data-data="2026-08-03"
+              data-forn="Atlas" data-carga="CARRO 25"
+              onchange="onStatusChange(this)">
+              <option value="pendente" selected>Pendente</option>
+              <option value="recebido">Recebido</option>
+              <option value="nao_compareceu">Não compareceu</option>
+              <option value="reagendado">Reagendado</option>
+            </select>
           </td>
         </tr>
 
@@ -358,15 +383,15 @@
           <td class="col-carga">Carro 01</td>
           <td class="col-dpto">MOVEIS</td>
           <td class="col-recebido">
-            <label class="chk-label">
-              <input type="checkbox" class="chk-recebido" 
-                data-id="5f4a83381ac2" data-initial="0"
-                data-cd="GO" data-data="2026-08-03"
-                data-forn="Itaitiaia" data-carga="Carro 01"
-                onchange="onToggleRecebido(this)">
-              <span>Recebido</span>
-            </label>
-            
+            <select class="status-select status-pendente" data-id="5f4a83381ac2" data-status-initial="pendente" data-status-atual="pendente"
+              data-cd="GO" data-data="2026-08-03"
+              data-forn="Itaitiaia" data-carga="Carro 01"
+              onchange="onStatusChange(this)">
+              <option value="pendente" selected>Pendente</option>
+              <option value="recebido">Recebido</option>
+              <option value="nao_compareceu">Não compareceu</option>
+              <option value="reagendado">Reagendado</option>
+            </select>
           </td>
         </tr>
 
@@ -375,15 +400,15 @@
           <td class="col-carga">Carro 04</td>
           <td class="col-dpto">PORTATEIS</td>
           <td class="col-recebido">
-            <label class="chk-label">
-              <input type="checkbox" class="chk-recebido" 
-                data-id="2cf050bd6f25" data-initial="0"
-                data-cd="GO" data-data="2026-08-03"
-                data-forn="Mondial" data-carga="Carro 04"
-                onchange="onToggleRecebido(this)">
-              <span>Recebido</span>
-            </label>
-            
+            <select class="status-select status-pendente" data-id="2cf050bd6f25" data-status-initial="pendente" data-status-atual="pendente"
+              data-cd="GO" data-data="2026-08-03"
+              data-forn="Mondial" data-carga="Carro 04"
+              onchange="onStatusChange(this)">
+              <option value="pendente" selected>Pendente</option>
+              <option value="recebido">Recebido</option>
+              <option value="nao_compareceu">Não compareceu</option>
+              <option value="reagendado">Reagendado</option>
+            </select>
           </td>
         </tr>
 
@@ -392,15 +417,15 @@
           <td class="col-carga">Carga 85188</td>
           <td class="col-dpto">MOVEIS</td>
           <td class="col-recebido">
-            <label class="chk-label">
-              <input type="checkbox" class="chk-recebido" 
-                data-id="5cc33c95d958" data-initial="0"
-                data-cd="GO" data-data="2026-08-03"
-                data-forn="Santos Andira" data-carga="Carga 85188"
-                onchange="onToggleRecebido(this)">
-              <span>Recebido</span>
-            </label>
-            
+            <select class="status-select status-pendente" data-id="5cc33c95d958" data-status-initial="pendente" data-status-atual="pendente"
+              data-cd="GO" data-data="2026-08-03"
+              data-forn="Santos Andira" data-carga="Carga 85188"
+              onchange="onStatusChange(this)">
+              <option value="pendente" selected>Pendente</option>
+              <option value="recebido">Recebido</option>
+              <option value="nao_compareceu">Não compareceu</option>
+              <option value="reagendado">Reagendado</option>
+            </select>
           </td>
         </tr>
         </tbody>
@@ -419,6 +444,7 @@
           <span class="dot">&middot;</span>
           <span>3 cargas</span>
         </div>
+        <button type="button" class="btn-aplicar-dia" onclick="marcarDiaRevisado(this)">Marcar dia como revisado</button>
       </div>
       <div class="table-scroll">
       <table class="carga-table">
@@ -427,7 +453,7 @@
             <th class="col-forn">Fornecedor</th>
             <th class="col-carga">NF / Carga / Romaneio</th>
             <th class="col-dpto">Departamento</th>
-            <th class="col-recebido">Recebido</th>
+            <th class="col-recebido">Status</th>
           </tr>
         </thead>
         <tbody>
@@ -437,15 +463,15 @@
           <td class="col-carga">CARRO 26</td>
           <td class="col-dpto">BRANCA</td>
           <td class="col-recebido">
-            <label class="chk-label">
-              <input type="checkbox" class="chk-recebido" 
-                data-id="78684874d9ad" data-initial="0"
-                data-cd="GO" data-data="2026-08-04"
-                data-forn="Atlas" data-carga="CARRO 26"
-                onchange="onToggleRecebido(this)">
-              <span>Recebido</span>
-            </label>
-            
+            <select class="status-select status-pendente" data-id="78684874d9ad" data-status-initial="pendente" data-status-atual="pendente"
+              data-cd="GO" data-data="2026-08-04"
+              data-forn="Atlas" data-carga="CARRO 26"
+              onchange="onStatusChange(this)">
+              <option value="pendente" selected>Pendente</option>
+              <option value="recebido">Recebido</option>
+              <option value="nao_compareceu">Não compareceu</option>
+              <option value="reagendado">Reagendado</option>
+            </select>
           </td>
         </tr>
 
@@ -454,15 +480,15 @@
           <td class="col-carga">Carro 01</td>
           <td class="col-dpto">BRANCA</td>
           <td class="col-recebido">
-            <label class="chk-label">
-              <input type="checkbox" class="chk-recebido" 
-                data-id="3be0195b4a87" data-initial="0"
-                data-cd="GO" data-data="2026-08-04"
-                data-forn="Fischer" data-carga="Carro 01"
-                onchange="onToggleRecebido(this)">
-              <span>Recebido</span>
-            </label>
-            
+            <select class="status-select status-pendente" data-id="3be0195b4a87" data-status-initial="pendente" data-status-atual="pendente"
+              data-cd="GO" data-data="2026-08-04"
+              data-forn="Fischer" data-carga="Carro 01"
+              onchange="onStatusChange(this)">
+              <option value="pendente" selected>Pendente</option>
+              <option value="recebido">Recebido</option>
+              <option value="nao_compareceu">Não compareceu</option>
+              <option value="reagendado">Reagendado</option>
+            </select>
           </td>
         </tr>
 
@@ -471,15 +497,15 @@
           <td class="col-carga">Carro 05</td>
           <td class="col-dpto">PORTATEIS</td>
           <td class="col-recebido">
-            <label class="chk-label">
-              <input type="checkbox" class="chk-recebido" 
-                data-id="e060fc09ec69" data-initial="0"
-                data-cd="GO" data-data="2026-08-04"
-                data-forn="Mondial" data-carga="Carro 05"
-                onchange="onToggleRecebido(this)">
-              <span>Recebido</span>
-            </label>
-            
+            <select class="status-select status-pendente" data-id="e060fc09ec69" data-status-initial="pendente" data-status-atual="pendente"
+              data-cd="GO" data-data="2026-08-04"
+              data-forn="Mondial" data-carga="Carro 05"
+              onchange="onStatusChange(this)">
+              <option value="pendente" selected>Pendente</option>
+              <option value="recebido">Recebido</option>
+              <option value="nao_compareceu">Não compareceu</option>
+              <option value="reagendado">Reagendado</option>
+            </select>
           </td>
         </tr>
         </tbody>
@@ -498,6 +524,7 @@
           <span class="dot">&middot;</span>
           <span>2 cargas</span>
         </div>
+        <button type="button" class="btn-aplicar-dia" onclick="marcarDiaRevisado(this)">Marcar dia como revisado</button>
       </div>
       <div class="table-scroll">
       <table class="carga-table">
@@ -506,7 +533,7 @@
             <th class="col-forn">Fornecedor</th>
             <th class="col-carga">NF / Carga / Romaneio</th>
             <th class="col-dpto">Departamento</th>
-            <th class="col-recebido">Recebido</th>
+            <th class="col-recebido">Status</th>
           </tr>
         </thead>
         <tbody>
@@ -516,15 +543,15 @@
           <td class="col-carga">Carro 06</td>
           <td class="col-dpto">PORTATEIS</td>
           <td class="col-recebido">
-            <label class="chk-label">
-              <input type="checkbox" class="chk-recebido" 
-                data-id="fe319e49e62a" data-initial="0"
-                data-cd="GO" data-data="2026-08-05"
-                data-forn="Mondial" data-carga="Carro 06"
-                onchange="onToggleRecebido(this)">
-              <span>Recebido</span>
-            </label>
-            
+            <select class="status-select status-pendente" data-id="fe319e49e62a" data-status-initial="pendente" data-status-atual="pendente"
+              data-cd="GO" data-data="2026-08-05"
+              data-forn="Mondial" data-carga="Carro 06"
+              onchange="onStatusChange(this)">
+              <option value="pendente" selected>Pendente</option>
+              <option value="recebido">Recebido</option>
+              <option value="nao_compareceu">Não compareceu</option>
+              <option value="reagendado">Reagendado</option>
+            </select>
           </td>
         </tr>
 
@@ -533,15 +560,15 @@
           <td class="col-carga">Carga 85269</td>
           <td class="col-dpto">MOVEIS</td>
           <td class="col-recebido">
-            <label class="chk-label">
-              <input type="checkbox" class="chk-recebido" 
-                data-id="9b2f74ab774e" data-initial="0"
-                data-cd="GO" data-data="2026-08-05"
-                data-forn="Santos Andira" data-carga="Carga 85269"
-                onchange="onToggleRecebido(this)">
-              <span>Recebido</span>
-            </label>
-            
+            <select class="status-select status-pendente" data-id="9b2f74ab774e" data-status-initial="pendente" data-status-atual="pendente"
+              data-cd="GO" data-data="2026-08-05"
+              data-forn="Santos Andira" data-carga="Carga 85269"
+              onchange="onStatusChange(this)">
+              <option value="pendente" selected>Pendente</option>
+              <option value="recebido">Recebido</option>
+              <option value="nao_compareceu">Não compareceu</option>
+              <option value="reagendado">Reagendado</option>
+            </select>
           </td>
         </tr>
         </tbody>
@@ -560,6 +587,7 @@
           <span class="dot">&middot;</span>
           <span>1 carga</span>
         </div>
+        <button type="button" class="btn-aplicar-dia" onclick="marcarDiaRevisado(this)">Marcar dia como revisado</button>
       </div>
       <div class="table-scroll">
       <table class="carga-table">
@@ -568,7 +596,7 @@
             <th class="col-forn">Fornecedor</th>
             <th class="col-carga">NF / Carga / Romaneio</th>
             <th class="col-dpto">Departamento</th>
-            <th class="col-recebido">Recebido</th>
+            <th class="col-recebido">Status</th>
           </tr>
         </thead>
         <tbody>
@@ -578,15 +606,15 @@
           <td class="col-carga">Carro 07</td>
           <td class="col-dpto">PORTATEIS</td>
           <td class="col-recebido">
-            <label class="chk-label">
-              <input type="checkbox" class="chk-recebido" 
-                data-id="3fde29b4b239" data-initial="0"
-                data-cd="GO" data-data="2026-08-06"
-                data-forn="Mondial" data-carga="Carro 07"
-                onchange="onToggleRecebido(this)">
-              <span>Recebido</span>
-            </label>
-            
+            <select class="status-select status-pendente" data-id="3fde29b4b239" data-status-initial="pendente" data-status-atual="pendente"
+              data-cd="GO" data-data="2026-08-06"
+              data-forn="Mondial" data-carga="Carro 07"
+              onchange="onStatusChange(this)">
+              <option value="pendente" selected>Pendente</option>
+              <option value="recebido">Recebido</option>
+              <option value="nao_compareceu">Não compareceu</option>
+              <option value="reagendado">Reagendado</option>
+            </select>
           </td>
         </tr>
         </tbody>
@@ -605,6 +633,7 @@
           <span class="dot">&middot;</span>
           <span>3 cargas</span>
         </div>
+        <button type="button" class="btn-aplicar-dia" onclick="marcarDiaRevisado(this)">Marcar dia como revisado</button>
       </div>
       <div class="table-scroll">
       <table class="carga-table">
@@ -613,7 +642,7 @@
             <th class="col-forn">Fornecedor</th>
             <th class="col-carga">NF / Carga / Romaneio</th>
             <th class="col-dpto">Departamento</th>
-            <th class="col-recebido">Recebido</th>
+            <th class="col-recebido">Status</th>
           </tr>
         </thead>
         <tbody>
@@ -623,15 +652,15 @@
           <td class="col-carga">NF 123941</td>
           <td class="col-dpto">MOVEIS</td>
           <td class="col-recebido">
-            <label class="chk-label">
-              <input type="checkbox" class="chk-recebido" 
-                data-id="f78b5da80e5a" data-initial="0"
-                data-cd="GO" data-data="2026-08-07"
-                data-forn="Bom Pastor" data-carga="NF 123941"
-                onchange="onToggleRecebido(this)">
-              <span>Recebido</span>
-            </label>
-            
+            <select class="status-select status-pendente" data-id="f78b5da80e5a" data-status-initial="pendente" data-status-atual="pendente"
+              data-cd="GO" data-data="2026-08-07"
+              data-forn="Bom Pastor" data-carga="NF 123941"
+              onchange="onStatusChange(this)">
+              <option value="pendente" selected>Pendente</option>
+              <option value="recebido">Recebido</option>
+              <option value="nao_compareceu">Não compareceu</option>
+              <option value="reagendado">Reagendado</option>
+            </select>
           </td>
         </tr>
 
@@ -640,15 +669,15 @@
           <td class="col-carga">Carro 01</td>
           <td class="col-dpto">MOVEIS</td>
           <td class="col-recebido">
-            <label class="chk-label">
-              <input type="checkbox" class="chk-recebido" 
-                data-id="6241caed8462" data-initial="0"
-                data-cd="GO" data-data="2026-08-07"
-                data-forn="Lanza" data-carga="Carro 01"
-                onchange="onToggleRecebido(this)">
-              <span>Recebido</span>
-            </label>
-            
+            <select class="status-select status-pendente" data-id="6241caed8462" data-status-initial="pendente" data-status-atual="pendente"
+              data-cd="GO" data-data="2026-08-07"
+              data-forn="Lanza" data-carga="Carro 01"
+              onchange="onStatusChange(this)">
+              <option value="pendente" selected>Pendente</option>
+              <option value="recebido">Recebido</option>
+              <option value="nao_compareceu">Não compareceu</option>
+              <option value="reagendado">Reagendado</option>
+            </select>
           </td>
         </tr>
 
@@ -657,15 +686,15 @@
           <td class="col-carga">Carro 08</td>
           <td class="col-dpto">PORTATEIS</td>
           <td class="col-recebido">
-            <label class="chk-label">
-              <input type="checkbox" class="chk-recebido" 
-                data-id="91b8f76208d3" data-initial="0"
-                data-cd="GO" data-data="2026-08-07"
-                data-forn="Mondial" data-carga="Carro 08"
-                onchange="onToggleRecebido(this)">
-              <span>Recebido</span>
-            </label>
-            
+            <select class="status-select status-pendente" data-id="91b8f76208d3" data-status-initial="pendente" data-status-atual="pendente"
+              data-cd="GO" data-data="2026-08-07"
+              data-forn="Mondial" data-carga="Carro 08"
+              onchange="onStatusChange(this)">
+              <option value="pendente" selected>Pendente</option>
+              <option value="recebido">Recebido</option>
+              <option value="nao_compareceu">Não compareceu</option>
+              <option value="reagendado">Reagendado</option>
+            </select>
           </td>
         </tr>
         </tbody>
@@ -684,6 +713,7 @@
           <span class="dot">&middot;</span>
           <span>3 cargas</span>
         </div>
+        <button type="button" class="btn-aplicar-dia" onclick="marcarDiaRevisado(this)">Marcar dia como revisado</button>
       </div>
       <div class="table-scroll">
       <table class="carga-table">
@@ -692,7 +722,7 @@
             <th class="col-forn">Fornecedor</th>
             <th class="col-carga">NF / Carga / Romaneio</th>
             <th class="col-dpto">Departamento</th>
-            <th class="col-recebido">Recebido</th>
+            <th class="col-recebido">Status</th>
           </tr>
         </thead>
         <tbody>
@@ -702,15 +732,15 @@
           <td class="col-carga">BITREM 05 - PARTE 01</td>
           <td class="col-dpto">BRANCA</td>
           <td class="col-recebido">
-            <label class="chk-label">
-              <input type="checkbox" class="chk-recebido" 
-                data-id="6212f7b012d5" data-initial="0"
-                data-cd="GO" data-data="2026-08-10"
-                data-forn="Atlas" data-carga="BITREM 05 - PARTE 01"
-                onchange="onToggleRecebido(this)">
-              <span>Recebido</span>
-            </label>
-            
+            <select class="status-select status-pendente" data-id="6212f7b012d5" data-status-initial="pendente" data-status-atual="pendente"
+              data-cd="GO" data-data="2026-08-10"
+              data-forn="Atlas" data-carga="BITREM 05 - PARTE 01"
+              onchange="onStatusChange(this)">
+              <option value="pendente" selected>Pendente</option>
+              <option value="recebido">Recebido</option>
+              <option value="nao_compareceu">Não compareceu</option>
+              <option value="reagendado">Reagendado</option>
+            </select>
           </td>
         </tr>
 
@@ -719,15 +749,15 @@
           <td class="col-carga">BITREM 05 - PARTE 02</td>
           <td class="col-dpto">BRANCA</td>
           <td class="col-recebido">
-            <label class="chk-label">
-              <input type="checkbox" class="chk-recebido" 
-                data-id="a0ad8fcfa26f" data-initial="0"
-                data-cd="GO" data-data="2026-08-10"
-                data-forn="Atlas" data-carga="BITREM 05 - PARTE 02"
-                onchange="onToggleRecebido(this)">
-              <span>Recebido</span>
-            </label>
-            
+            <select class="status-select status-pendente" data-id="a0ad8fcfa26f" data-status-initial="pendente" data-status-atual="pendente"
+              data-cd="GO" data-data="2026-08-10"
+              data-forn="Atlas" data-carga="BITREM 05 - PARTE 02"
+              onchange="onStatusChange(this)">
+              <option value="pendente" selected>Pendente</option>
+              <option value="recebido">Recebido</option>
+              <option value="nao_compareceu">Não compareceu</option>
+              <option value="reagendado">Reagendado</option>
+            </select>
           </td>
         </tr>
 
@@ -736,15 +766,15 @@
           <td class="col-carga">Carga 7648</td>
           <td class="col-dpto">MOVEIS</td>
           <td class="col-recebido">
-            <label class="chk-label">
-              <input type="checkbox" class="chk-recebido" 
-                data-id="9034541d1906" data-initial="0"
-                data-cd="GO" data-data="2026-08-10"
-                data-forn="Itatiaia" data-carga="Carga 7648"
-                onchange="onToggleRecebido(this)">
-              <span>Recebido</span>
-            </label>
-            
+            <select class="status-select status-pendente" data-id="9034541d1906" data-status-initial="pendente" data-status-atual="pendente"
+              data-cd="GO" data-data="2026-08-10"
+              data-forn="Itatiaia" data-carga="Carga 7648"
+              onchange="onStatusChange(this)">
+              <option value="pendente" selected>Pendente</option>
+              <option value="recebido">Recebido</option>
+              <option value="nao_compareceu">Não compareceu</option>
+              <option value="reagendado">Reagendado</option>
+            </select>
           </td>
         </tr>
         </tbody>
@@ -763,6 +793,7 @@
           <span class="dot">&middot;</span>
           <span>1 carga</span>
         </div>
+        <button type="button" class="btn-aplicar-dia" onclick="marcarDiaRevisado(this)">Marcar dia como revisado</button>
       </div>
       <div class="table-scroll">
       <table class="carga-table">
@@ -771,7 +802,7 @@
             <th class="col-forn">Fornecedor</th>
             <th class="col-carga">NF / Carga / Romaneio</th>
             <th class="col-dpto">Departamento</th>
-            <th class="col-recebido">Recebido</th>
+            <th class="col-recebido">Status</th>
           </tr>
         </thead>
         <tbody>
@@ -781,15 +812,15 @@
           <td class="col-carga">CARRO 27</td>
           <td class="col-dpto">BRANCA</td>
           <td class="col-recebido">
-            <label class="chk-label">
-              <input type="checkbox" class="chk-recebido" 
-                data-id="024b2005ff92" data-initial="0"
-                data-cd="GO" data-data="2026-08-11"
-                data-forn="Atlas" data-carga="CARRO 27"
-                onchange="onToggleRecebido(this)">
-              <span>Recebido</span>
-            </label>
-            
+            <select class="status-select status-pendente" data-id="024b2005ff92" data-status-initial="pendente" data-status-atual="pendente"
+              data-cd="GO" data-data="2026-08-11"
+              data-forn="Atlas" data-carga="CARRO 27"
+              onchange="onStatusChange(this)">
+              <option value="pendente" selected>Pendente</option>
+              <option value="recebido">Recebido</option>
+              <option value="nao_compareceu">Não compareceu</option>
+              <option value="reagendado">Reagendado</option>
+            </select>
           </td>
         </tr>
         </tbody>
@@ -808,6 +839,7 @@
           <span class="dot">&middot;</span>
           <span>1 carga</span>
         </div>
+        <button type="button" class="btn-aplicar-dia" onclick="marcarDiaRevisado(this)">Marcar dia como revisado</button>
       </div>
       <div class="table-scroll">
       <table class="carga-table">
@@ -816,7 +848,7 @@
             <th class="col-forn">Fornecedor</th>
             <th class="col-carga">NF / Carga / Romaneio</th>
             <th class="col-dpto">Departamento</th>
-            <th class="col-recebido">Recebido</th>
+            <th class="col-recebido">Status</th>
           </tr>
         </thead>
         <tbody>
@@ -826,15 +858,15 @@
           <td class="col-carga">NF 123942</td>
           <td class="col-dpto">MOVEIS</td>
           <td class="col-recebido">
-            <label class="chk-label">
-              <input type="checkbox" class="chk-recebido" 
-                data-id="0e42db278f8e" data-initial="0"
-                data-cd="GO" data-data="2026-08-14"
-                data-forn="Bom Pastor" data-carga="NF 123942"
-                onchange="onToggleRecebido(this)">
-              <span>Recebido</span>
-            </label>
-            
+            <select class="status-select status-pendente" data-id="0e42db278f8e" data-status-initial="pendente" data-status-atual="pendente"
+              data-cd="GO" data-data="2026-08-14"
+              data-forn="Bom Pastor" data-carga="NF 123942"
+              onchange="onStatusChange(this)">
+              <option value="pendente" selected>Pendente</option>
+              <option value="recebido">Recebido</option>
+              <option value="nao_compareceu">Não compareceu</option>
+              <option value="reagendado">Reagendado</option>
+            </select>
           </td>
         </tr>
         </tbody>
@@ -853,6 +885,7 @@
           <span class="dot">&middot;</span>
           <span>1 carga</span>
         </div>
+        <button type="button" class="btn-aplicar-dia" onclick="marcarDiaRevisado(this)">Marcar dia como revisado</button>
       </div>
       <div class="table-scroll">
       <table class="carga-table">
@@ -861,7 +894,7 @@
             <th class="col-forn">Fornecedor</th>
             <th class="col-carga">NF / Carga / Romaneio</th>
             <th class="col-dpto">Departamento</th>
-            <th class="col-recebido">Recebido</th>
+            <th class="col-recebido">Status</th>
           </tr>
         </thead>
         <tbody>
@@ -871,15 +904,15 @@
           <td class="col-carga">NFs 1025509 1016523 330691 330692 330693 330694 1025504 1019839 1019840 1025505 1025510</td>
           <td class="col-dpto">PORTATEIS</td>
           <td class="col-recebido">
-            <label class="chk-label">
-              <input type="checkbox" class="chk-recebido" 
-                data-id="f68f41126c48" data-initial="0"
-                data-cd="GO" data-data="2026-08-15"
-                data-forn="Mondial" data-carga="NFs 1025509 1016523 330691 330692 330693 330694 1025504 1019839 1019840 1025505 1025510"
-                onchange="onToggleRecebido(this)">
-              <span>Recebido</span>
-            </label>
-            
+            <select class="status-select status-pendente" data-id="f68f41126c48" data-status-initial="pendente" data-status-atual="pendente"
+              data-cd="GO" data-data="2026-08-15"
+              data-forn="Mondial" data-carga="NFs 1025509 1016523 330691 330692 330693 330694 1025504 1019839 1019840 1025505 1025510"
+              onchange="onStatusChange(this)">
+              <option value="pendente" selected>Pendente</option>
+              <option value="recebido">Recebido</option>
+              <option value="nao_compareceu">Não compareceu</option>
+              <option value="reagendado">Reagendado</option>
+            </select>
           </td>
         </tr>
         </tbody>
@@ -898,6 +931,7 @@
           <span class="dot">&middot;</span>
           <span>2 cargas</span>
         </div>
+        <button type="button" class="btn-aplicar-dia" onclick="marcarDiaRevisado(this)">Marcar dia como revisado</button>
       </div>
       <div class="table-scroll">
       <table class="carga-table">
@@ -906,7 +940,7 @@
             <th class="col-forn">Fornecedor</th>
             <th class="col-carga">NF / Carga / Romaneio</th>
             <th class="col-dpto">Departamento</th>
-            <th class="col-recebido">Recebido</th>
+            <th class="col-recebido">Status</th>
           </tr>
         </thead>
         <tbody>
@@ -916,15 +950,15 @@
           <td class="col-carga">CARRO 28</td>
           <td class="col-dpto">BRANCA</td>
           <td class="col-recebido">
-            <label class="chk-label">
-              <input type="checkbox" class="chk-recebido" 
-                data-id="12dd61847592" data-initial="0"
-                data-cd="GO" data-data="2026-08-17"
-                data-forn="Atlas" data-carga="CARRO 28"
-                onchange="onToggleRecebido(this)">
-              <span>Recebido</span>
-            </label>
-            
+            <select class="status-select status-pendente" data-id="12dd61847592" data-status-initial="pendente" data-status-atual="pendente"
+              data-cd="GO" data-data="2026-08-17"
+              data-forn="Atlas" data-carga="CARRO 28"
+              onchange="onStatusChange(this)">
+              <option value="pendente" selected>Pendente</option>
+              <option value="recebido">Recebido</option>
+              <option value="nao_compareceu">Não compareceu</option>
+              <option value="reagendado">Reagendado</option>
+            </select>
           </td>
         </tr>
 
@@ -933,15 +967,15 @@
           <td class="col-carga">Romaneio 01</td>
           <td class="col-dpto">BRANCA</td>
           <td class="col-recebido">
-            <label class="chk-label">
-              <input type="checkbox" class="chk-recebido" 
-                data-id="9644cba2d7fc" data-initial="0"
-                data-cd="GO" data-data="2026-08-17"
-                data-forn="Fischer" data-carga="Romaneio 01"
-                onchange="onToggleRecebido(this)">
-              <span>Recebido</span>
-            </label>
-            
+            <select class="status-select status-pendente" data-id="9644cba2d7fc" data-status-initial="pendente" data-status-atual="pendente"
+              data-cd="GO" data-data="2026-08-17"
+              data-forn="Fischer" data-carga="Romaneio 01"
+              onchange="onStatusChange(this)">
+              <option value="pendente" selected>Pendente</option>
+              <option value="recebido">Recebido</option>
+              <option value="nao_compareceu">Não compareceu</option>
+              <option value="reagendado">Reagendado</option>
+            </select>
           </td>
         </tr>
         </tbody>
@@ -960,6 +994,7 @@
           <span class="dot">&middot;</span>
           <span>1 carga</span>
         </div>
+        <button type="button" class="btn-aplicar-dia" onclick="marcarDiaRevisado(this)">Marcar dia como revisado</button>
       </div>
       <div class="table-scroll">
       <table class="carga-table">
@@ -968,7 +1003,7 @@
             <th class="col-forn">Fornecedor</th>
             <th class="col-carga">NF / Carga / Romaneio</th>
             <th class="col-dpto">Departamento</th>
-            <th class="col-recebido">Recebido</th>
+            <th class="col-recebido">Status</th>
           </tr>
         </thead>
         <tbody>
@@ -978,15 +1013,15 @@
           <td class="col-carga">CARRO 29</td>
           <td class="col-dpto">BRANCA</td>
           <td class="col-recebido">
-            <label class="chk-label">
-              <input type="checkbox" class="chk-recebido" 
-                data-id="bd71cf1a818d" data-initial="0"
-                data-cd="GO" data-data="2026-08-18"
-                data-forn="Atlas" data-carga="CARRO 29"
-                onchange="onToggleRecebido(this)">
-              <span>Recebido</span>
-            </label>
-            
+            <select class="status-select status-pendente" data-id="bd71cf1a818d" data-status-initial="pendente" data-status-atual="pendente"
+              data-cd="GO" data-data="2026-08-18"
+              data-forn="Atlas" data-carga="CARRO 29"
+              onchange="onStatusChange(this)">
+              <option value="pendente" selected>Pendente</option>
+              <option value="recebido">Recebido</option>
+              <option value="nao_compareceu">Não compareceu</option>
+              <option value="reagendado">Reagendado</option>
+            </select>
           </td>
         </tr>
         </tbody>
@@ -1005,6 +1040,7 @@
           <span class="dot">&middot;</span>
           <span>2 cargas</span>
         </div>
+        <button type="button" class="btn-aplicar-dia" onclick="marcarDiaRevisado(this)">Marcar dia como revisado</button>
       </div>
       <div class="table-scroll">
       <table class="carga-table">
@@ -1013,7 +1049,7 @@
             <th class="col-forn">Fornecedor</th>
             <th class="col-carga">NF / Carga / Romaneio</th>
             <th class="col-dpto">Departamento</th>
-            <th class="col-recebido">Recebido</th>
+            <th class="col-recebido">Status</th>
           </tr>
         </thead>
         <tbody>
@@ -1023,15 +1059,15 @@
           <td class="col-carga">Carga 7111</td>
           <td class="col-dpto">MOVEIS</td>
           <td class="col-recebido">
-            <label class="chk-label">
-              <input type="checkbox" class="chk-recebido" 
-                data-id="4c228abab687" data-initial="0"
-                data-cd="GO" data-data="2026-08-20"
-                data-forn="Hellen" data-carga="Carga 7111"
-                onchange="onToggleRecebido(this)">
-              <span>Recebido</span>
-            </label>
-            
+            <select class="status-select status-pendente" data-id="4c228abab687" data-status-initial="pendente" data-status-atual="pendente"
+              data-cd="GO" data-data="2026-08-20"
+              data-forn="Hellen" data-carga="Carga 7111"
+              onchange="onStatusChange(this)">
+              <option value="pendente" selected>Pendente</option>
+              <option value="recebido">Recebido</option>
+              <option value="nao_compareceu">Não compareceu</option>
+              <option value="reagendado">Reagendado</option>
+            </select>
           </td>
         </tr>
 
@@ -1040,15 +1076,15 @@
           <td class="col-carga">Carga 7112</td>
           <td class="col-dpto">MOVEIS</td>
           <td class="col-recebido">
-            <label class="chk-label">
-              <input type="checkbox" class="chk-recebido" 
-                data-id="d7eb72b829e0" data-initial="0"
-                data-cd="GO" data-data="2026-08-20"
-                data-forn="Hellen" data-carga="Carga 7112"
-                onchange="onToggleRecebido(this)">
-              <span>Recebido</span>
-            </label>
-            
+            <select class="status-select status-pendente" data-id="d7eb72b829e0" data-status-initial="pendente" data-status-atual="pendente"
+              data-cd="GO" data-data="2026-08-20"
+              data-forn="Hellen" data-carga="Carga 7112"
+              onchange="onStatusChange(this)">
+              <option value="pendente" selected>Pendente</option>
+              <option value="recebido">Recebido</option>
+              <option value="nao_compareceu">Não compareceu</option>
+              <option value="reagendado">Reagendado</option>
+            </select>
           </td>
         </tr>
         </tbody>
@@ -1067,6 +1103,7 @@
           <span class="dot">&middot;</span>
           <span>1 carga</span>
         </div>
+        <button type="button" class="btn-aplicar-dia" onclick="marcarDiaRevisado(this)">Marcar dia como revisado</button>
       </div>
       <div class="table-scroll">
       <table class="carga-table">
@@ -1075,7 +1112,7 @@
             <th class="col-forn">Fornecedor</th>
             <th class="col-carga">NF / Carga / Romaneio</th>
             <th class="col-dpto">Departamento</th>
-            <th class="col-recebido">Recebido</th>
+            <th class="col-recebido">Status</th>
           </tr>
         </thead>
         <tbody>
@@ -1085,15 +1122,15 @@
           <td class="col-carga">NF 123943</td>
           <td class="col-dpto">MOVEIS</td>
           <td class="col-recebido">
-            <label class="chk-label">
-              <input type="checkbox" class="chk-recebido" 
-                data-id="72ba617d85a2" data-initial="0"
-                data-cd="GO" data-data="2026-08-21"
-                data-forn="Bom Pastor" data-carga="NF 123943"
-                onchange="onToggleRecebido(this)">
-              <span>Recebido</span>
-            </label>
-            
+            <select class="status-select status-pendente" data-id="72ba617d85a2" data-status-initial="pendente" data-status-atual="pendente"
+              data-cd="GO" data-data="2026-08-21"
+              data-forn="Bom Pastor" data-carga="NF 123943"
+              onchange="onStatusChange(this)">
+              <option value="pendente" selected>Pendente</option>
+              <option value="recebido">Recebido</option>
+              <option value="nao_compareceu">Não compareceu</option>
+              <option value="reagendado">Reagendado</option>
+            </select>
           </td>
         </tr>
         </tbody>
@@ -1112,6 +1149,7 @@
           <span class="dot">&middot;</span>
           <span>2 cargas</span>
         </div>
+        <button type="button" class="btn-aplicar-dia" onclick="marcarDiaRevisado(this)">Marcar dia como revisado</button>
       </div>
       <div class="table-scroll">
       <table class="carga-table">
@@ -1120,7 +1158,7 @@
             <th class="col-forn">Fornecedor</th>
             <th class="col-carga">NF / Carga / Romaneio</th>
             <th class="col-dpto">Departamento</th>
-            <th class="col-recebido">Recebido</th>
+            <th class="col-recebido">Status</th>
           </tr>
         </thead>
         <tbody>
@@ -1130,15 +1168,15 @@
           <td class="col-carga">Carga 7113</td>
           <td class="col-dpto">MOVEIS</td>
           <td class="col-recebido">
-            <label class="chk-label">
-              <input type="checkbox" class="chk-recebido" 
-                data-id="c696bd74f36e" data-initial="0"
-                data-cd="GO" data-data="2026-08-24"
-                data-forn="Hellen" data-carga="Carga 7113"
-                onchange="onToggleRecebido(this)">
-              <span>Recebido</span>
-            </label>
-            
+            <select class="status-select status-pendente" data-id="c696bd74f36e" data-status-initial="pendente" data-status-atual="pendente"
+              data-cd="GO" data-data="2026-08-24"
+              data-forn="Hellen" data-carga="Carga 7113"
+              onchange="onStatusChange(this)">
+              <option value="pendente" selected>Pendente</option>
+              <option value="recebido">Recebido</option>
+              <option value="nao_compareceu">Não compareceu</option>
+              <option value="reagendado">Reagendado</option>
+            </select>
           </td>
         </tr>
 
@@ -1147,15 +1185,15 @@
           <td class="col-carga">Carga 7114</td>
           <td class="col-dpto">MOVEIS</td>
           <td class="col-recebido">
-            <label class="chk-label">
-              <input type="checkbox" class="chk-recebido" 
-                data-id="d1d70ea1d9d4" data-initial="0"
-                data-cd="GO" data-data="2026-08-24"
-                data-forn="Hellen" data-carga="Carga 7114"
-                onchange="onToggleRecebido(this)">
-              <span>Recebido</span>
-            </label>
-            
+            <select class="status-select status-pendente" data-id="d1d70ea1d9d4" data-status-initial="pendente" data-status-atual="pendente"
+              data-cd="GO" data-data="2026-08-24"
+              data-forn="Hellen" data-carga="Carga 7114"
+              onchange="onStatusChange(this)">
+              <option value="pendente" selected>Pendente</option>
+              <option value="recebido">Recebido</option>
+              <option value="nao_compareceu">Não compareceu</option>
+              <option value="reagendado">Reagendado</option>
+            </select>
           </td>
         </tr>
         </tbody>
@@ -1174,6 +1212,7 @@
           <span class="dot">&middot;</span>
           <span>4 cargas</span>
         </div>
+        <button type="button" class="btn-aplicar-dia" onclick="marcarDiaRevisado(this)">Marcar dia como revisado</button>
       </div>
       <div class="table-scroll">
       <table class="carga-table">
@@ -1182,7 +1221,7 @@
             <th class="col-forn">Fornecedor</th>
             <th class="col-carga">NF / Carga / Romaneio</th>
             <th class="col-dpto">Departamento</th>
-            <th class="col-recebido">Recebido</th>
+            <th class="col-recebido">Status</th>
           </tr>
         </thead>
         <tbody>
@@ -1192,15 +1231,15 @@
           <td class="col-carga">Carga 498156</td>
           <td class="col-dpto">MOVEIS</td>
           <td class="col-recebido">
-            <label class="chk-label">
-              <input type="checkbox" class="chk-recebido" 
-                data-id="b03029705ab3" data-initial="0"
-                data-cd="GO" data-data="2026-08-25"
-                data-forn="Hellen" data-carga="Carga 498156"
-                onchange="onToggleRecebido(this)">
-              <span>Recebido</span>
-            </label>
-            
+            <select class="status-select status-pendente" data-id="b03029705ab3" data-status-initial="pendente" data-status-atual="pendente"
+              data-cd="GO" data-data="2026-08-25"
+              data-forn="Hellen" data-carga="Carga 498156"
+              onchange="onStatusChange(this)">
+              <option value="pendente" selected>Pendente</option>
+              <option value="recebido">Recebido</option>
+              <option value="nao_compareceu">Não compareceu</option>
+              <option value="reagendado">Reagendado</option>
+            </select>
           </td>
         </tr>
 
@@ -1209,15 +1248,15 @@
           <td class="col-carga">Carga 7119</td>
           <td class="col-dpto">MOVEIS</td>
           <td class="col-recebido">
-            <label class="chk-label">
-              <input type="checkbox" class="chk-recebido" 
-                data-id="881bc6de5d96" data-initial="0"
-                data-cd="GO" data-data="2026-08-25"
-                data-forn="Hellen" data-carga="Carga 7119"
-                onchange="onToggleRecebido(this)">
-              <span>Recebido</span>
-            </label>
-            
+            <select class="status-select status-pendente" data-id="881bc6de5d96" data-status-initial="pendente" data-status-atual="pendente"
+              data-cd="GO" data-data="2026-08-25"
+              data-forn="Hellen" data-carga="Carga 7119"
+              onchange="onStatusChange(this)">
+              <option value="pendente" selected>Pendente</option>
+              <option value="recebido">Recebido</option>
+              <option value="nao_compareceu">Não compareceu</option>
+              <option value="reagendado">Reagendado</option>
+            </select>
           </td>
         </tr>
 
@@ -1226,15 +1265,15 @@
           <td class="col-carga">Carga 7120</td>
           <td class="col-dpto">MOVEIS</td>
           <td class="col-recebido">
-            <label class="chk-label">
-              <input type="checkbox" class="chk-recebido" 
-                data-id="7c1741f7c005" data-initial="0"
-                data-cd="GO" data-data="2026-08-25"
-                data-forn="Hellen" data-carga="Carga 7120"
-                onchange="onToggleRecebido(this)">
-              <span>Recebido</span>
-            </label>
-            
+            <select class="status-select status-pendente" data-id="7c1741f7c005" data-status-initial="pendente" data-status-atual="pendente"
+              data-cd="GO" data-data="2026-08-25"
+              data-forn="Hellen" data-carga="Carga 7120"
+              onchange="onStatusChange(this)">
+              <option value="pendente" selected>Pendente</option>
+              <option value="recebido">Recebido</option>
+              <option value="nao_compareceu">Não compareceu</option>
+              <option value="reagendado">Reagendado</option>
+            </select>
           </td>
         </tr>
 
@@ -1243,15 +1282,15 @@
           <td class="col-carga">Carga 7127</td>
           <td class="col-dpto">MOVEIS</td>
           <td class="col-recebido">
-            <label class="chk-label">
-              <input type="checkbox" class="chk-recebido" 
-                data-id="b47e54663f16" data-initial="0"
-                data-cd="GO" data-data="2026-08-25"
-                data-forn="Hellen" data-carga="Carga 7127"
-                onchange="onToggleRecebido(this)">
-              <span>Recebido</span>
-            </label>
-            
+            <select class="status-select status-pendente" data-id="b47e54663f16" data-status-initial="pendente" data-status-atual="pendente"
+              data-cd="GO" data-data="2026-08-25"
+              data-forn="Hellen" data-carga="Carga 7127"
+              onchange="onStatusChange(this)">
+              <option value="pendente" selected>Pendente</option>
+              <option value="recebido">Recebido</option>
+              <option value="nao_compareceu">Não compareceu</option>
+              <option value="reagendado">Reagendado</option>
+            </select>
           </td>
         </tr>
         </tbody>
@@ -1270,6 +1309,7 @@
           <span class="dot">&middot;</span>
           <span>2 cargas</span>
         </div>
+        <button type="button" class="btn-aplicar-dia" onclick="marcarDiaRevisado(this)">Marcar dia como revisado</button>
       </div>
       <div class="table-scroll">
       <table class="carga-table">
@@ -1278,7 +1318,7 @@
             <th class="col-forn">Fornecedor</th>
             <th class="col-carga">NF / Carga / Romaneio</th>
             <th class="col-dpto">Departamento</th>
-            <th class="col-recebido">Recebido</th>
+            <th class="col-recebido">Status</th>
           </tr>
         </thead>
         <tbody>
@@ -1288,15 +1328,15 @@
           <td class="col-carga">Carga 7121</td>
           <td class="col-dpto">MOVEIS</td>
           <td class="col-recebido">
-            <label class="chk-label">
-              <input type="checkbox" class="chk-recebido" 
-                data-id="ff81432e7a66" data-initial="0"
-                data-cd="GO" data-data="2026-08-27"
-                data-forn="Hellen" data-carga="Carga 7121"
-                onchange="onToggleRecebido(this)">
-              <span>Recebido</span>
-            </label>
-            
+            <select class="status-select status-pendente" data-id="ff81432e7a66" data-status-initial="pendente" data-status-atual="pendente"
+              data-cd="GO" data-data="2026-08-27"
+              data-forn="Hellen" data-carga="Carga 7121"
+              onchange="onStatusChange(this)">
+              <option value="pendente" selected>Pendente</option>
+              <option value="recebido">Recebido</option>
+              <option value="nao_compareceu">Não compareceu</option>
+              <option value="reagendado">Reagendado</option>
+            </select>
           </td>
         </tr>
 
@@ -1305,15 +1345,15 @@
           <td class="col-carga">Carga 7125</td>
           <td class="col-dpto">MOVEIS</td>
           <td class="col-recebido">
-            <label class="chk-label">
-              <input type="checkbox" class="chk-recebido" 
-                data-id="5a45746f5f00" data-initial="0"
-                data-cd="GO" data-data="2026-08-27"
-                data-forn="Hellen" data-carga="Carga 7125"
-                onchange="onToggleRecebido(this)">
-              <span>Recebido</span>
-            </label>
-            
+            <select class="status-select status-pendente" data-id="5a45746f5f00" data-status-initial="pendente" data-status-atual="pendente"
+              data-cd="GO" data-data="2026-08-27"
+              data-forn="Hellen" data-carga="Carga 7125"
+              onchange="onStatusChange(this)">
+              <option value="pendente" selected>Pendente</option>
+              <option value="recebido">Recebido</option>
+              <option value="nao_compareceu">Não compareceu</option>
+              <option value="reagendado">Reagendado</option>
+            </select>
           </td>
         </tr>
         </tbody>
@@ -1332,6 +1372,7 @@
           <span class="dot">&middot;</span>
           <span>3 cargas</span>
         </div>
+        <button type="button" class="btn-aplicar-dia" onclick="marcarDiaRevisado(this)">Marcar dia como revisado</button>
       </div>
       <div class="table-scroll">
       <table class="carga-table">
@@ -1340,7 +1381,7 @@
             <th class="col-forn">Fornecedor</th>
             <th class="col-carga">NF / Carga / Romaneio</th>
             <th class="col-dpto">Departamento</th>
-            <th class="col-recebido">Recebido</th>
+            <th class="col-recebido">Status</th>
           </tr>
         </thead>
         <tbody>
@@ -1350,15 +1391,15 @@
           <td class="col-carga">Carga 498152</td>
           <td class="col-dpto">MOVEIS</td>
           <td class="col-recebido">
-            <label class="chk-label">
-              <input type="checkbox" class="chk-recebido" 
-                data-id="03989f3ed978" data-initial="0"
-                data-cd="GO" data-data="2026-08-28"
-                data-forn="Hellen" data-carga="Carga 498152"
-                onchange="onToggleRecebido(this)">
-              <span>Recebido</span>
-            </label>
-            
+            <select class="status-select status-pendente" data-id="03989f3ed978" data-status-initial="pendente" data-status-atual="pendente"
+              data-cd="GO" data-data="2026-08-28"
+              data-forn="Hellen" data-carga="Carga 498152"
+              onchange="onStatusChange(this)">
+              <option value="pendente" selected>Pendente</option>
+              <option value="recebido">Recebido</option>
+              <option value="nao_compareceu">Não compareceu</option>
+              <option value="reagendado">Reagendado</option>
+            </select>
           </td>
         </tr>
 
@@ -1367,15 +1408,15 @@
           <td class="col-carga">Carga 7117</td>
           <td class="col-dpto">MOVEIS</td>
           <td class="col-recebido">
-            <label class="chk-label">
-              <input type="checkbox" class="chk-recebido" 
-                data-id="a41ae343d2ae" data-initial="0"
-                data-cd="GO" data-data="2026-08-28"
-                data-forn="Hellen" data-carga="Carga 7117"
-                onchange="onToggleRecebido(this)">
-              <span>Recebido</span>
-            </label>
-            
+            <select class="status-select status-pendente" data-id="a41ae343d2ae" data-status-initial="pendente" data-status-atual="pendente"
+              data-cd="GO" data-data="2026-08-28"
+              data-forn="Hellen" data-carga="Carga 7117"
+              onchange="onStatusChange(this)">
+              <option value="pendente" selected>Pendente</option>
+              <option value="recebido">Recebido</option>
+              <option value="nao_compareceu">Não compareceu</option>
+              <option value="reagendado">Reagendado</option>
+            </select>
           </td>
         </tr>
 
@@ -1384,15 +1425,15 @@
           <td class="col-carga">Carga 7126</td>
           <td class="col-dpto">MOVEIS</td>
           <td class="col-recebido">
-            <label class="chk-label">
-              <input type="checkbox" class="chk-recebido" 
-                data-id="88627afe757a" data-initial="0"
-                data-cd="GO" data-data="2026-08-28"
-                data-forn="Hellen" data-carga="Carga 7126"
-                onchange="onToggleRecebido(this)">
-              <span>Recebido</span>
-            </label>
-            
+            <select class="status-select status-pendente" data-id="88627afe757a" data-status-initial="pendente" data-status-atual="pendente"
+              data-cd="GO" data-data="2026-08-28"
+              data-forn="Hellen" data-carga="Carga 7126"
+              onchange="onStatusChange(this)">
+              <option value="pendente" selected>Pendente</option>
+              <option value="recebido">Recebido</option>
+              <option value="nao_compareceu">Não compareceu</option>
+              <option value="reagendado">Reagendado</option>
+            </select>
           </td>
         </tr>
         </tbody>
@@ -1411,6 +1452,7 @@
           <span class="dot">&middot;</span>
           <span>4 cargas</span>
         </div>
+        <button type="button" class="btn-aplicar-dia" onclick="marcarDiaRevisado(this)">Marcar dia como revisado</button>
       </div>
       <div class="table-scroll">
       <table class="carga-table">
@@ -1419,7 +1461,7 @@
             <th class="col-forn">Fornecedor</th>
             <th class="col-carga">NF / Carga / Romaneio</th>
             <th class="col-dpto">Departamento</th>
-            <th class="col-recebido">Recebido</th>
+            <th class="col-recebido">Status</th>
           </tr>
         </thead>
         <tbody>
@@ -1429,15 +1471,15 @@
           <td class="col-carga">Carga 498154</td>
           <td class="col-dpto">MOVEIS</td>
           <td class="col-recebido">
-            <label class="chk-label">
-              <input type="checkbox" class="chk-recebido" 
-                data-id="f4e43c9fdc2e" data-initial="0"
-                data-cd="GO" data-data="2026-08-31"
-                data-forn="Hellen" data-carga="Carga 498154"
-                onchange="onToggleRecebido(this)">
-              <span>Recebido</span>
-            </label>
-            
+            <select class="status-select status-pendente" data-id="f4e43c9fdc2e" data-status-initial="pendente" data-status-atual="pendente"
+              data-cd="GO" data-data="2026-08-31"
+              data-forn="Hellen" data-carga="Carga 498154"
+              onchange="onStatusChange(this)">
+              <option value="pendente" selected>Pendente</option>
+              <option value="recebido">Recebido</option>
+              <option value="nao_compareceu">Não compareceu</option>
+              <option value="reagendado">Reagendado</option>
+            </select>
           </td>
         </tr>
 
@@ -1446,15 +1488,15 @@
           <td class="col-carga">Carga 7115</td>
           <td class="col-dpto">MOVEIS</td>
           <td class="col-recebido">
-            <label class="chk-label">
-              <input type="checkbox" class="chk-recebido" 
-                data-id="1b84c9b98f0f" data-initial="0"
-                data-cd="GO" data-data="2026-08-31"
-                data-forn="Hellen" data-carga="Carga 7115"
-                onchange="onToggleRecebido(this)">
-              <span>Recebido</span>
-            </label>
-            
+            <select class="status-select status-pendente" data-id="1b84c9b98f0f" data-status-initial="pendente" data-status-atual="pendente"
+              data-cd="GO" data-data="2026-08-31"
+              data-forn="Hellen" data-carga="Carga 7115"
+              onchange="onStatusChange(this)">
+              <option value="pendente" selected>Pendente</option>
+              <option value="recebido">Recebido</option>
+              <option value="nao_compareceu">Não compareceu</option>
+              <option value="reagendado">Reagendado</option>
+            </select>
           </td>
         </tr>
 
@@ -1463,15 +1505,15 @@
           <td class="col-carga">Carga 7116</td>
           <td class="col-dpto">MOVEIS</td>
           <td class="col-recebido">
-            <label class="chk-label">
-              <input type="checkbox" class="chk-recebido" 
-                data-id="423e0442fedd" data-initial="0"
-                data-cd="GO" data-data="2026-08-31"
-                data-forn="Hellen" data-carga="Carga 7116"
-                onchange="onToggleRecebido(this)">
-              <span>Recebido</span>
-            </label>
-            
+            <select class="status-select status-pendente" data-id="423e0442fedd" data-status-initial="pendente" data-status-atual="pendente"
+              data-cd="GO" data-data="2026-08-31"
+              data-forn="Hellen" data-carga="Carga 7116"
+              onchange="onStatusChange(this)">
+              <option value="pendente" selected>Pendente</option>
+              <option value="recebido">Recebido</option>
+              <option value="nao_compareceu">Não compareceu</option>
+              <option value="reagendado">Reagendado</option>
+            </select>
           </td>
         </tr>
 
@@ -1480,15 +1522,15 @@
           <td class="col-carga">Carga 7122</td>
           <td class="col-dpto">MOVEIS</td>
           <td class="col-recebido">
-            <label class="chk-label">
-              <input type="checkbox" class="chk-recebido" 
-                data-id="33ff003f01bf" data-initial="0"
-                data-cd="GO" data-data="2026-08-31"
-                data-forn="Hellen" data-carga="Carga 7122"
-                onchange="onToggleRecebido(this)">
-              <span>Recebido</span>
-            </label>
-            
+            <select class="status-select status-pendente" data-id="33ff003f01bf" data-status-initial="pendente" data-status-atual="pendente"
+              data-cd="GO" data-data="2026-08-31"
+              data-forn="Hellen" data-carga="Carga 7122"
+              onchange="onStatusChange(this)">
+              <option value="pendente" selected>Pendente</option>
+              <option value="recebido">Recebido</option>
+              <option value="nao_compareceu">Não compareceu</option>
+              <option value="reagendado">Reagendado</option>
+            </select>
           </td>
         </tr>
         </tbody>
@@ -1507,6 +1549,7 @@
           <span class="dot">&middot;</span>
           <span>3 cargas</span>
         </div>
+        <button type="button" class="btn-aplicar-dia" onclick="marcarDiaRevisado(this)">Marcar dia como revisado</button>
       </div>
       <div class="table-scroll">
       <table class="carga-table">
@@ -1515,7 +1558,7 @@
             <th class="col-forn">Fornecedor</th>
             <th class="col-carga">NF / Carga / Romaneio</th>
             <th class="col-dpto">Departamento</th>
-            <th class="col-recebido">Recebido</th>
+            <th class="col-recebido">Status</th>
           </tr>
         </thead>
         <tbody>
@@ -1525,15 +1568,15 @@
           <td class="col-carga">Carga 7118</td>
           <td class="col-dpto">MOVEIS</td>
           <td class="col-recebido">
-            <label class="chk-label">
-              <input type="checkbox" class="chk-recebido" 
-                data-id="df9a59428138" data-initial="0"
-                data-cd="GO" data-data="2026-09-01"
-                data-forn="Hellen" data-carga="Carga 7118"
-                onchange="onToggleRecebido(this)">
-              <span>Recebido</span>
-            </label>
-            
+            <select class="status-select status-pendente" data-id="df9a59428138" data-status-initial="pendente" data-status-atual="pendente"
+              data-cd="GO" data-data="2026-09-01"
+              data-forn="Hellen" data-carga="Carga 7118"
+              onchange="onStatusChange(this)">
+              <option value="pendente" selected>Pendente</option>
+              <option value="recebido">Recebido</option>
+              <option value="nao_compareceu">Não compareceu</option>
+              <option value="reagendado">Reagendado</option>
+            </select>
           </td>
         </tr>
 
@@ -1542,15 +1585,15 @@
           <td class="col-carga">Carga 7123</td>
           <td class="col-dpto">MOVEIS</td>
           <td class="col-recebido">
-            <label class="chk-label">
-              <input type="checkbox" class="chk-recebido" 
-                data-id="df87844b7910" data-initial="0"
-                data-cd="GO" data-data="2026-09-01"
-                data-forn="Hellen" data-carga="Carga 7123"
-                onchange="onToggleRecebido(this)">
-              <span>Recebido</span>
-            </label>
-            
+            <select class="status-select status-pendente" data-id="df87844b7910" data-status-initial="pendente" data-status-atual="pendente"
+              data-cd="GO" data-data="2026-09-01"
+              data-forn="Hellen" data-carga="Carga 7123"
+              onchange="onStatusChange(this)">
+              <option value="pendente" selected>Pendente</option>
+              <option value="recebido">Recebido</option>
+              <option value="nao_compareceu">Não compareceu</option>
+              <option value="reagendado">Reagendado</option>
+            </select>
           </td>
         </tr>
 
@@ -1559,15 +1602,15 @@
           <td class="col-carga">Carga 7124</td>
           <td class="col-dpto">MOVEIS</td>
           <td class="col-recebido">
-            <label class="chk-label">
-              <input type="checkbox" class="chk-recebido" 
-                data-id="6f2c0318d02b" data-initial="0"
-                data-cd="GO" data-data="2026-09-01"
-                data-forn="Hellen" data-carga="Carga 7124"
-                onchange="onToggleRecebido(this)">
-              <span>Recebido</span>
-            </label>
-            
+            <select class="status-select status-pendente" data-id="6f2c0318d02b" data-status-initial="pendente" data-status-atual="pendente"
+              data-cd="GO" data-data="2026-09-01"
+              data-forn="Hellen" data-carga="Carga 7124"
+              onchange="onStatusChange(this)">
+              <option value="pendente" selected>Pendente</option>
+              <option value="recebido">Recebido</option>
+              <option value="nao_compareceu">Não compareceu</option>
+              <option value="reagendado">Reagendado</option>
+            </select>
           </td>
         </tr>
         </tbody>
@@ -1586,6 +1629,7 @@
           <span class="dot">&middot;</span>
           <span>3 cargas</span>
         </div>
+        <button type="button" class="btn-aplicar-dia" onclick="marcarDiaRevisado(this)">Marcar dia como revisado</button>
       </div>
       <div class="table-scroll">
       <table class="carga-table">
@@ -1594,7 +1638,7 @@
             <th class="col-forn">Fornecedor</th>
             <th class="col-carga">NF / Carga / Romaneio</th>
             <th class="col-dpto">Departamento</th>
-            <th class="col-recebido">Recebido</th>
+            <th class="col-recebido">Status</th>
           </tr>
         </thead>
         <tbody>
@@ -1604,15 +1648,15 @@
           <td class="col-carga">Carga 498158</td>
           <td class="col-dpto">MOVEIS</td>
           <td class="col-recebido">
-            <label class="chk-label">
-              <input type="checkbox" class="chk-recebido" 
-                data-id="1dad6019fd4c" data-initial="0"
-                data-cd="GO" data-data="2026-09-02"
-                data-forn="Hellen" data-carga="Carga 498158"
-                onchange="onToggleRecebido(this)">
-              <span>Recebido</span>
-            </label>
-            
+            <select class="status-select status-pendente" data-id="1dad6019fd4c" data-status-initial="pendente" data-status-atual="pendente"
+              data-cd="GO" data-data="2026-09-02"
+              data-forn="Hellen" data-carga="Carga 498158"
+              onchange="onStatusChange(this)">
+              <option value="pendente" selected>Pendente</option>
+              <option value="recebido">Recebido</option>
+              <option value="nao_compareceu">Não compareceu</option>
+              <option value="reagendado">Reagendado</option>
+            </select>
           </td>
         </tr>
 
@@ -1621,15 +1665,15 @@
           <td class="col-carga">Carga 498159</td>
           <td class="col-dpto">MOVEIS</td>
           <td class="col-recebido">
-            <label class="chk-label">
-              <input type="checkbox" class="chk-recebido" 
-                data-id="9fed70a4e017" data-initial="0"
-                data-cd="GO" data-data="2026-09-02"
-                data-forn="Hellen" data-carga="Carga 498159"
-                onchange="onToggleRecebido(this)">
-              <span>Recebido</span>
-            </label>
-            
+            <select class="status-select status-pendente" data-id="9fed70a4e017" data-status-initial="pendente" data-status-atual="pendente"
+              data-cd="GO" data-data="2026-09-02"
+              data-forn="Hellen" data-carga="Carga 498159"
+              onchange="onStatusChange(this)">
+              <option value="pendente" selected>Pendente</option>
+              <option value="recebido">Recebido</option>
+              <option value="nao_compareceu">Não compareceu</option>
+              <option value="reagendado">Reagendado</option>
+            </select>
           </td>
         </tr>
 
@@ -1638,15 +1682,15 @@
           <td class="col-carga">Carga 7128</td>
           <td class="col-dpto">MOVEIS</td>
           <td class="col-recebido">
-            <label class="chk-label">
-              <input type="checkbox" class="chk-recebido" 
-                data-id="17c7b4feb48c" data-initial="0"
-                data-cd="GO" data-data="2026-09-02"
-                data-forn="Hellen" data-carga="Carga 7128"
-                onchange="onToggleRecebido(this)">
-              <span>Recebido</span>
-            </label>
-            
+            <select class="status-select status-pendente" data-id="17c7b4feb48c" data-status-initial="pendente" data-status-atual="pendente"
+              data-cd="GO" data-data="2026-09-02"
+              data-forn="Hellen" data-carga="Carga 7128"
+              onchange="onStatusChange(this)">
+              <option value="pendente" selected>Pendente</option>
+              <option value="recebido">Recebido</option>
+              <option value="nao_compareceu">Não compareceu</option>
+              <option value="reagendado">Reagendado</option>
+            </select>
           </td>
         </tr>
         </tbody>
@@ -1665,6 +1709,7 @@
           <span class="dot">&middot;</span>
           <span>2 cargas</span>
         </div>
+        <button type="button" class="btn-aplicar-dia" onclick="marcarDiaRevisado(this)">Marcar dia como revisado</button>
       </div>
       <div class="table-scroll">
       <table class="carga-table">
@@ -1673,7 +1718,7 @@
             <th class="col-forn">Fornecedor</th>
             <th class="col-carga">NF / Carga / Romaneio</th>
             <th class="col-dpto">Departamento</th>
-            <th class="col-recebido">Recebido</th>
+            <th class="col-recebido">Status</th>
           </tr>
         </thead>
         <tbody>
@@ -1683,15 +1728,15 @@
           <td class="col-carga">Carga 7149</td>
           <td class="col-dpto">MOVEIS</td>
           <td class="col-recebido">
-            <label class="chk-label">
-              <input type="checkbox" class="chk-recebido" 
-                data-id="f3680530bb65" data-initial="0"
-                data-cd="GO" data-data="2026-09-03"
-                data-forn="Hellen" data-carga="Carga 7149"
-                onchange="onToggleRecebido(this)">
-              <span>Recebido</span>
-            </label>
-            
+            <select class="status-select status-pendente" data-id="f3680530bb65" data-status-initial="pendente" data-status-atual="pendente"
+              data-cd="GO" data-data="2026-09-03"
+              data-forn="Hellen" data-carga="Carga 7149"
+              onchange="onStatusChange(this)">
+              <option value="pendente" selected>Pendente</option>
+              <option value="recebido">Recebido</option>
+              <option value="nao_compareceu">Não compareceu</option>
+              <option value="reagendado">Reagendado</option>
+            </select>
           </td>
         </tr>
 
@@ -1700,15 +1745,15 @@
           <td class="col-carga">Carga 7150</td>
           <td class="col-dpto">MOVEIS</td>
           <td class="col-recebido">
-            <label class="chk-label">
-              <input type="checkbox" class="chk-recebido" 
-                data-id="cf889431ab1c" data-initial="0"
-                data-cd="GO" data-data="2026-09-03"
-                data-forn="Hellen" data-carga="Carga 7150"
-                onchange="onToggleRecebido(this)">
-              <span>Recebido</span>
-            </label>
-            
+            <select class="status-select status-pendente" data-id="cf889431ab1c" data-status-initial="pendente" data-status-atual="pendente"
+              data-cd="GO" data-data="2026-09-03"
+              data-forn="Hellen" data-carga="Carga 7150"
+              onchange="onStatusChange(this)">
+              <option value="pendente" selected>Pendente</option>
+              <option value="recebido">Recebido</option>
+              <option value="nao_compareceu">Não compareceu</option>
+              <option value="reagendado">Reagendado</option>
+            </select>
           </td>
         </tr>
         </tbody>
@@ -1727,6 +1772,7 @@
           <span class="dot">&middot;</span>
           <span>4 cargas</span>
         </div>
+        <button type="button" class="btn-aplicar-dia" onclick="marcarDiaRevisado(this)">Marcar dia como revisado</button>
       </div>
       <div class="table-scroll">
       <table class="carga-table">
@@ -1735,7 +1781,7 @@
             <th class="col-forn">Fornecedor</th>
             <th class="col-carga">NF / Carga / Romaneio</th>
             <th class="col-dpto">Departamento</th>
-            <th class="col-recebido">Recebido</th>
+            <th class="col-recebido">Status</th>
           </tr>
         </thead>
         <tbody>
@@ -1745,15 +1791,15 @@
           <td class="col-carga">Carga 498153</td>
           <td class="col-dpto">MOVEIS</td>
           <td class="col-recebido">
-            <label class="chk-label">
-              <input type="checkbox" class="chk-recebido" 
-                data-id="d1a8b1c58859" data-initial="0"
-                data-cd="GO" data-data="2026-09-07"
-                data-forn="Hellen" data-carga="Carga 498153"
-                onchange="onToggleRecebido(this)">
-              <span>Recebido</span>
-            </label>
-            
+            <select class="status-select status-pendente" data-id="d1a8b1c58859" data-status-initial="pendente" data-status-atual="pendente"
+              data-cd="GO" data-data="2026-09-07"
+              data-forn="Hellen" data-carga="Carga 498153"
+              onchange="onStatusChange(this)">
+              <option value="pendente" selected>Pendente</option>
+              <option value="recebido">Recebido</option>
+              <option value="nao_compareceu">Não compareceu</option>
+              <option value="reagendado">Reagendado</option>
+            </select>
           </td>
         </tr>
 
@@ -1762,15 +1808,15 @@
           <td class="col-carga">Carga 498155</td>
           <td class="col-dpto">MOVEIS</td>
           <td class="col-recebido">
-            <label class="chk-label">
-              <input type="checkbox" class="chk-recebido" 
-                data-id="a85962a39301" data-initial="0"
-                data-cd="GO" data-data="2026-09-07"
-                data-forn="Hellen" data-carga="Carga 498155"
-                onchange="onToggleRecebido(this)">
-              <span>Recebido</span>
-            </label>
-            
+            <select class="status-select status-pendente" data-id="a85962a39301" data-status-initial="pendente" data-status-atual="pendente"
+              data-cd="GO" data-data="2026-09-07"
+              data-forn="Hellen" data-carga="Carga 498155"
+              onchange="onStatusChange(this)">
+              <option value="pendente" selected>Pendente</option>
+              <option value="recebido">Recebido</option>
+              <option value="nao_compareceu">Não compareceu</option>
+              <option value="reagendado">Reagendado</option>
+            </select>
           </td>
         </tr>
 
@@ -1779,15 +1825,15 @@
           <td class="col-carga">Carga 7154</td>
           <td class="col-dpto">MOVEIS</td>
           <td class="col-recebido">
-            <label class="chk-label">
-              <input type="checkbox" class="chk-recebido" 
-                data-id="3db3bd559b39" data-initial="0"
-                data-cd="GO" data-data="2026-09-07"
-                data-forn="Hellen" data-carga="Carga 7154"
-                onchange="onToggleRecebido(this)">
-              <span>Recebido</span>
-            </label>
-            
+            <select class="status-select status-pendente" data-id="3db3bd559b39" data-status-initial="pendente" data-status-atual="pendente"
+              data-cd="GO" data-data="2026-09-07"
+              data-forn="Hellen" data-carga="Carga 7154"
+              onchange="onStatusChange(this)">
+              <option value="pendente" selected>Pendente</option>
+              <option value="recebido">Recebido</option>
+              <option value="nao_compareceu">Não compareceu</option>
+              <option value="reagendado">Reagendado</option>
+            </select>
           </td>
         </tr>
 
@@ -1796,15 +1842,15 @@
           <td class="col-carga">Carga 7155</td>
           <td class="col-dpto">MOVEIS</td>
           <td class="col-recebido">
-            <label class="chk-label">
-              <input type="checkbox" class="chk-recebido" 
-                data-id="f073cf440610" data-initial="0"
-                data-cd="GO" data-data="2026-09-07"
-                data-forn="Hellen" data-carga="Carga 7155"
-                onchange="onToggleRecebido(this)">
-              <span>Recebido</span>
-            </label>
-            
+            <select class="status-select status-pendente" data-id="f073cf440610" data-status-initial="pendente" data-status-atual="pendente"
+              data-cd="GO" data-data="2026-09-07"
+              data-forn="Hellen" data-carga="Carga 7155"
+              onchange="onStatusChange(this)">
+              <option value="pendente" selected>Pendente</option>
+              <option value="recebido">Recebido</option>
+              <option value="nao_compareceu">Não compareceu</option>
+              <option value="reagendado">Reagendado</option>
+            </select>
           </td>
         </tr>
         </tbody>
@@ -1823,6 +1869,7 @@
           <span class="dot">&middot;</span>
           <span>2 cargas</span>
         </div>
+        <button type="button" class="btn-aplicar-dia" onclick="marcarDiaRevisado(this)">Marcar dia como revisado</button>
       </div>
       <div class="table-scroll">
       <table class="carga-table">
@@ -1831,7 +1878,7 @@
             <th class="col-forn">Fornecedor</th>
             <th class="col-carga">NF / Carga / Romaneio</th>
             <th class="col-dpto">Departamento</th>
-            <th class="col-recebido">Recebido</th>
+            <th class="col-recebido">Status</th>
           </tr>
         </thead>
         <tbody>
@@ -1841,15 +1888,15 @@
           <td class="col-carga">Carga 7152</td>
           <td class="col-dpto">MOVEIS</td>
           <td class="col-recebido">
-            <label class="chk-label">
-              <input type="checkbox" class="chk-recebido" 
-                data-id="0415b4d002c4" data-initial="0"
-                data-cd="GO" data-data="2026-09-08"
-                data-forn="Hellen" data-carga="Carga 7152"
-                onchange="onToggleRecebido(this)">
-              <span>Recebido</span>
-            </label>
-            
+            <select class="status-select status-pendente" data-id="0415b4d002c4" data-status-initial="pendente" data-status-atual="pendente"
+              data-cd="GO" data-data="2026-09-08"
+              data-forn="Hellen" data-carga="Carga 7152"
+              onchange="onStatusChange(this)">
+              <option value="pendente" selected>Pendente</option>
+              <option value="recebido">Recebido</option>
+              <option value="nao_compareceu">Não compareceu</option>
+              <option value="reagendado">Reagendado</option>
+            </select>
           </td>
         </tr>
 
@@ -1858,15 +1905,15 @@
           <td class="col-carga">Carga 8151</td>
           <td class="col-dpto">MOVEIS</td>
           <td class="col-recebido">
-            <label class="chk-label">
-              <input type="checkbox" class="chk-recebido" 
-                data-id="f26db44cbfbe" data-initial="0"
-                data-cd="GO" data-data="2026-09-08"
-                data-forn="Hellen" data-carga="Carga 8151"
-                onchange="onToggleRecebido(this)">
-              <span>Recebido</span>
-            </label>
-            
+            <select class="status-select status-pendente" data-id="f26db44cbfbe" data-status-initial="pendente" data-status-atual="pendente"
+              data-cd="GO" data-data="2026-09-08"
+              data-forn="Hellen" data-carga="Carga 8151"
+              onchange="onStatusChange(this)">
+              <option value="pendente" selected>Pendente</option>
+              <option value="recebido">Recebido</option>
+              <option value="nao_compareceu">Não compareceu</option>
+              <option value="reagendado">Reagendado</option>
+            </select>
           </td>
         </tr>
         </tbody>
@@ -1885,6 +1932,7 @@
           <span class="dot">&middot;</span>
           <span>1 carga</span>
         </div>
+        <button type="button" class="btn-aplicar-dia" onclick="marcarDiaRevisado(this)">Marcar dia como revisado</button>
       </div>
       <div class="table-scroll">
       <table class="carga-table">
@@ -1893,7 +1941,7 @@
             <th class="col-forn">Fornecedor</th>
             <th class="col-carga">NF / Carga / Romaneio</th>
             <th class="col-dpto">Departamento</th>
-            <th class="col-recebido">Recebido</th>
+            <th class="col-recebido">Status</th>
           </tr>
         </thead>
         <tbody>
@@ -1903,15 +1951,15 @@
           <td class="col-carga">Carga 498160</td>
           <td class="col-dpto">MOVEIS</td>
           <td class="col-recebido">
-            <label class="chk-label">
-              <input type="checkbox" class="chk-recebido" 
-                data-id="69599d3467ba" data-initial="0"
-                data-cd="GO" data-data="2026-09-09"
-                data-forn="Hellen" data-carga="Carga 498160"
-                onchange="onToggleRecebido(this)">
-              <span>Recebido</span>
-            </label>
-            
+            <select class="status-select status-pendente" data-id="69599d3467ba" data-status-initial="pendente" data-status-atual="pendente"
+              data-cd="GO" data-data="2026-09-09"
+              data-forn="Hellen" data-carga="Carga 498160"
+              onchange="onStatusChange(this)">
+              <option value="pendente" selected>Pendente</option>
+              <option value="recebido">Recebido</option>
+              <option value="nao_compareceu">Não compareceu</option>
+              <option value="reagendado">Reagendado</option>
+            </select>
           </td>
         </tr>
         </tbody>
@@ -1930,6 +1978,7 @@
           <span class="dot">&middot;</span>
           <span>4 cargas</span>
         </div>
+        <button type="button" class="btn-aplicar-dia" onclick="marcarDiaRevisado(this)">Marcar dia como revisado</button>
       </div>
       <div class="table-scroll">
       <table class="carga-table">
@@ -1938,7 +1987,7 @@
             <th class="col-forn">Fornecedor</th>
             <th class="col-carga">NF / Carga / Romaneio</th>
             <th class="col-dpto">Departamento</th>
-            <th class="col-recebido">Recebido</th>
+            <th class="col-recebido">Status</th>
           </tr>
         </thead>
         <tbody>
@@ -1948,15 +1997,15 @@
           <td class="col-carga">Carga 7147</td>
           <td class="col-dpto">MOVEIS</td>
           <td class="col-recebido">
-            <label class="chk-label">
-              <input type="checkbox" class="chk-recebido" 
-                data-id="e1f9041bb79d" data-initial="0"
-                data-cd="GO" data-data="2026-09-10"
-                data-forn="Hellen" data-carga="Carga 7147"
-                onchange="onToggleRecebido(this)">
-              <span>Recebido</span>
-            </label>
-            
+            <select class="status-select status-pendente" data-id="e1f9041bb79d" data-status-initial="pendente" data-status-atual="pendente"
+              data-cd="GO" data-data="2026-09-10"
+              data-forn="Hellen" data-carga="Carga 7147"
+              onchange="onStatusChange(this)">
+              <option value="pendente" selected>Pendente</option>
+              <option value="recebido">Recebido</option>
+              <option value="nao_compareceu">Não compareceu</option>
+              <option value="reagendado">Reagendado</option>
+            </select>
           </td>
         </tr>
 
@@ -1965,15 +2014,15 @@
           <td class="col-carga">Carga 7148</td>
           <td class="col-dpto">MOVEIS</td>
           <td class="col-recebido">
-            <label class="chk-label">
-              <input type="checkbox" class="chk-recebido" 
-                data-id="5ab29dd1ebcf" data-initial="0"
-                data-cd="GO" data-data="2026-09-10"
-                data-forn="Hellen" data-carga="Carga 7148"
-                onchange="onToggleRecebido(this)">
-              <span>Recebido</span>
-            </label>
-            
+            <select class="status-select status-pendente" data-id="5ab29dd1ebcf" data-status-initial="pendente" data-status-atual="pendente"
+              data-cd="GO" data-data="2026-09-10"
+              data-forn="Hellen" data-carga="Carga 7148"
+              onchange="onStatusChange(this)">
+              <option value="pendente" selected>Pendente</option>
+              <option value="recebido">Recebido</option>
+              <option value="nao_compareceu">Não compareceu</option>
+              <option value="reagendado">Reagendado</option>
+            </select>
           </td>
         </tr>
 
@@ -1982,15 +2031,15 @@
           <td class="col-carga">Carga 7153</td>
           <td class="col-dpto">MOVEIS</td>
           <td class="col-recebido">
-            <label class="chk-label">
-              <input type="checkbox" class="chk-recebido" 
-                data-id="76c4fad1389a" data-initial="0"
-                data-cd="GO" data-data="2026-09-10"
-                data-forn="Hellen" data-carga="Carga 7153"
-                onchange="onToggleRecebido(this)">
-              <span>Recebido</span>
-            </label>
-            
+            <select class="status-select status-pendente" data-id="76c4fad1389a" data-status-initial="pendente" data-status-atual="pendente"
+              data-cd="GO" data-data="2026-09-10"
+              data-forn="Hellen" data-carga="Carga 7153"
+              onchange="onStatusChange(this)">
+              <option value="pendente" selected>Pendente</option>
+              <option value="recebido">Recebido</option>
+              <option value="nao_compareceu">Não compareceu</option>
+              <option value="reagendado">Reagendado</option>
+            </select>
           </td>
         </tr>
 
@@ -1999,15 +2048,15 @@
           <td class="col-carga">Carga 7156</td>
           <td class="col-dpto">MOVEIS</td>
           <td class="col-recebido">
-            <label class="chk-label">
-              <input type="checkbox" class="chk-recebido" 
-                data-id="446fe758f694" data-initial="0"
-                data-cd="GO" data-data="2026-09-10"
-                data-forn="Hellen" data-carga="Carga 7156"
-                onchange="onToggleRecebido(this)">
-              <span>Recebido</span>
-            </label>
-            
+            <select class="status-select status-pendente" data-id="446fe758f694" data-status-initial="pendente" data-status-atual="pendente"
+              data-cd="GO" data-data="2026-09-10"
+              data-forn="Hellen" data-carga="Carga 7156"
+              onchange="onStatusChange(this)">
+              <option value="pendente" selected>Pendente</option>
+              <option value="recebido">Recebido</option>
+              <option value="nao_compareceu">Não compareceu</option>
+              <option value="reagendado">Reagendado</option>
+            </select>
           </td>
         </tr>
         </tbody>
@@ -2026,6 +2075,7 @@
           <span class="dot">&middot;</span>
           <span>1 carga</span>
         </div>
+        <button type="button" class="btn-aplicar-dia" onclick="marcarDiaRevisado(this)">Marcar dia como revisado</button>
       </div>
       <div class="table-scroll">
       <table class="carga-table">
@@ -2034,7 +2084,7 @@
             <th class="col-forn">Fornecedor</th>
             <th class="col-carga">NF / Carga / Romaneio</th>
             <th class="col-dpto">Departamento</th>
-            <th class="col-recebido">Recebido</th>
+            <th class="col-recebido">Status</th>
           </tr>
         </thead>
         <tbody>
@@ -2044,15 +2094,15 @@
           <td class="col-carga">Carga 498157</td>
           <td class="col-dpto">MOVEIS</td>
           <td class="col-recebido">
-            <label class="chk-label">
-              <input type="checkbox" class="chk-recebido" 
-                data-id="9bb9920a9646" data-initial="0"
-                data-cd="GO" data-data="2026-09-11"
-                data-forn="Hellen" data-carga="Carga 498157"
-                onchange="onToggleRecebido(this)">
-              <span>Recebido</span>
-            </label>
-            
+            <select class="status-select status-pendente" data-id="9bb9920a9646" data-status-initial="pendente" data-status-atual="pendente"
+              data-cd="GO" data-data="2026-09-11"
+              data-forn="Hellen" data-carga="Carga 498157"
+              onchange="onStatusChange(this)">
+              <option value="pendente" selected>Pendente</option>
+              <option value="recebido">Recebido</option>
+              <option value="nao_compareceu">Não compareceu</option>
+              <option value="reagendado">Reagendado</option>
+            </select>
           </td>
         </tr>
         </tbody>
@@ -2092,6 +2142,7 @@
           <span class="dot">&middot;</span>
           <span>1 carga</span>
         </div>
+        <button type="button" class="btn-aplicar-dia" onclick="marcarDiaRevisado(this)">Marcar dia como revisado</button>
       </div>
       <div class="table-scroll">
       <table class="carga-table">
@@ -2100,7 +2151,7 @@
             <th class="col-forn">Fornecedor</th>
             <th class="col-carga">NF / Carga / Romaneio</th>
             <th class="col-dpto">Departamento</th>
-            <th class="col-recebido">Recebido</th>
+            <th class="col-recebido">Status</th>
           </tr>
         </thead>
         <tbody>
@@ -2110,15 +2161,15 @@
           <td class="col-carga">Carga 57</td>
           <td class="col-dpto">MOVEIS</td>
           <td class="col-recebido">
-            <label class="chk-label">
-              <input type="checkbox" class="chk-recebido" 
-                data-id="54dd6f5c97ab" data-initial="0"
-                data-cd="MA" data-data="2026-08-05"
-                data-forn="Topazio" data-carga="Carga 57"
-                onchange="onToggleRecebido(this)">
-              <span>Recebido</span>
-            </label>
-            
+            <select class="status-select status-pendente" data-id="54dd6f5c97ab" data-status-initial="pendente" data-status-atual="pendente"
+              data-cd="MA" data-data="2026-08-05"
+              data-forn="Topazio" data-carga="Carga 57"
+              onchange="onStatusChange(this)">
+              <option value="pendente" selected>Pendente</option>
+              <option value="recebido">Recebido</option>
+              <option value="nao_compareceu">Não compareceu</option>
+              <option value="reagendado">Reagendado</option>
+            </select>
           </td>
         </tr>
         </tbody>
@@ -2137,6 +2188,7 @@
           <span class="dot">&middot;</span>
           <span>1 carga</span>
         </div>
+        <button type="button" class="btn-aplicar-dia" onclick="marcarDiaRevisado(this)">Marcar dia como revisado</button>
       </div>
       <div class="table-scroll">
       <table class="carga-table">
@@ -2145,7 +2197,7 @@
             <th class="col-forn">Fornecedor</th>
             <th class="col-carga">NF / Carga / Romaneio</th>
             <th class="col-dpto">Departamento</th>
-            <th class="col-recebido">Recebido</th>
+            <th class="col-recebido">Status</th>
           </tr>
         </thead>
         <tbody>
@@ -2155,15 +2207,15 @@
           <td class="col-carga">Carga 58</td>
           <td class="col-dpto">MOVEIS</td>
           <td class="col-recebido">
-            <label class="chk-label">
-              <input type="checkbox" class="chk-recebido" 
-                data-id="302bb53cc02b" data-initial="0"
-                data-cd="MA" data-data="2026-08-07"
-                data-forn="Topazio" data-carga="Carga 58"
-                onchange="onToggleRecebido(this)">
-              <span>Recebido</span>
-            </label>
-            
+            <select class="status-select status-pendente" data-id="302bb53cc02b" data-status-initial="pendente" data-status-atual="pendente"
+              data-cd="MA" data-data="2026-08-07"
+              data-forn="Topazio" data-carga="Carga 58"
+              onchange="onStatusChange(this)">
+              <option value="pendente" selected>Pendente</option>
+              <option value="recebido">Recebido</option>
+              <option value="nao_compareceu">Não compareceu</option>
+              <option value="reagendado">Reagendado</option>
+            </select>
           </td>
         </tr>
         </tbody>
@@ -2182,6 +2234,7 @@
           <span class="dot">&middot;</span>
           <span>1 carga</span>
         </div>
+        <button type="button" class="btn-aplicar-dia" onclick="marcarDiaRevisado(this)">Marcar dia como revisado</button>
       </div>
       <div class="table-scroll">
       <table class="carga-table">
@@ -2190,7 +2243,7 @@
             <th class="col-forn">Fornecedor</th>
             <th class="col-carga">NF / Carga / Romaneio</th>
             <th class="col-dpto">Departamento</th>
-            <th class="col-recebido">Recebido</th>
+            <th class="col-recebido">Status</th>
           </tr>
         </thead>
         <tbody>
@@ -2200,15 +2253,15 @@
           <td class="col-carga">NFs 330695 1009248 1009554 1016894 1017552 1018444 1025514 1026624 1031039 1031040</td>
           <td class="col-dpto">PORTATEIS</td>
           <td class="col-recebido">
-            <label class="chk-label">
-              <input type="checkbox" class="chk-recebido" 
-                data-id="2fab62a97bef" data-initial="0"
-                data-cd="MA" data-data="2026-08-15"
-                data-forn="Mondial" data-carga="NFs 330695 1009248 1009554 1016894 1017552 1018444 1025514 1026624 1031039 1031040"
-                onchange="onToggleRecebido(this)">
-              <span>Recebido</span>
-            </label>
-            
+            <select class="status-select status-pendente" data-id="2fab62a97bef" data-status-initial="pendente" data-status-atual="pendente"
+              data-cd="MA" data-data="2026-08-15"
+              data-forn="Mondial" data-carga="NFs 330695 1009248 1009554 1016894 1017552 1018444 1025514 1026624 1031039 1031040"
+              onchange="onStatusChange(this)">
+              <option value="pendente" selected>Pendente</option>
+              <option value="recebido">Recebido</option>
+              <option value="nao_compareceu">Não compareceu</option>
+              <option value="reagendado">Reagendado</option>
+            </select>
           </td>
         </tr>
         </tbody>
@@ -2248,6 +2301,7 @@
           <span class="dot">&middot;</span>
           <span>1 carga</span>
         </div>
+        <button type="button" class="btn-aplicar-dia" onclick="marcarDiaRevisado(this)">Marcar dia como revisado</button>
       </div>
       <div class="table-scroll">
       <table class="carga-table">
@@ -2256,7 +2310,7 @@
             <th class="col-forn">Fornecedor</th>
             <th class="col-carga">NF / Carga / Romaneio</th>
             <th class="col-dpto">Departamento</th>
-            <th class="col-recebido">Recebido</th>
+            <th class="col-recebido">Status</th>
           </tr>
         </thead>
         <tbody>
@@ -2266,15 +2320,15 @@
           <td class="col-carga">Carga 56</td>
           <td class="col-dpto">MOVEIS</td>
           <td class="col-recebido">
-            <label class="chk-label">
-              <input type="checkbox" class="chk-recebido" 
-                data-id="d532bb211c9f" data-initial="0"
-                data-cd="PA" data-data="2026-08-05"
-                data-forn="Topazio" data-carga="Carga 56"
-                onchange="onToggleRecebido(this)">
-              <span>Recebido</span>
-            </label>
-            
+            <select class="status-select status-pendente" data-id="d532bb211c9f" data-status-initial="pendente" data-status-atual="pendente"
+              data-cd="PA" data-data="2026-08-05"
+              data-forn="Topazio" data-carga="Carga 56"
+              onchange="onStatusChange(this)">
+              <option value="pendente" selected>Pendente</option>
+              <option value="recebido">Recebido</option>
+              <option value="nao_compareceu">Não compareceu</option>
+              <option value="reagendado">Reagendado</option>
+            </select>
           </td>
         </tr>
         </tbody>
@@ -2293,6 +2347,7 @@
           <span class="dot">&middot;</span>
           <span>1 carga</span>
         </div>
+        <button type="button" class="btn-aplicar-dia" onclick="marcarDiaRevisado(this)">Marcar dia como revisado</button>
       </div>
       <div class="table-scroll">
       <table class="carga-table">
@@ -2301,7 +2356,7 @@
             <th class="col-forn">Fornecedor</th>
             <th class="col-carga">NF / Carga / Romaneio</th>
             <th class="col-dpto">Departamento</th>
-            <th class="col-recebido">Recebido</th>
+            <th class="col-recebido">Status</th>
           </tr>
         </thead>
         <tbody>
@@ -2311,15 +2366,15 @@
           <td class="col-carga">Carga 15645443</td>
           <td class="col-dpto">PORTATEIS</td>
           <td class="col-recebido">
-            <label class="chk-label">
-              <input type="checkbox" class="chk-recebido" 
-                data-id="8ce440a5d4de" data-initial="0"
-                data-cd="PA" data-data="2026-08-12"
-                data-forn="Electrolux" data-carga="Carga 15645443"
-                onchange="onToggleRecebido(this)">
-              <span>Recebido</span>
-            </label>
-            
+            <select class="status-select status-pendente" data-id="8ce440a5d4de" data-status-initial="pendente" data-status-atual="pendente"
+              data-cd="PA" data-data="2026-08-12"
+              data-forn="Electrolux" data-carga="Carga 15645443"
+              onchange="onStatusChange(this)">
+              <option value="pendente" selected>Pendente</option>
+              <option value="recebido">Recebido</option>
+              <option value="nao_compareceu">Não compareceu</option>
+              <option value="reagendado">Reagendado</option>
+            </select>
           </td>
         </tr>
         </tbody>
@@ -2338,6 +2393,7 @@
           <span class="dot">&middot;</span>
           <span>1 carga</span>
         </div>
+        <button type="button" class="btn-aplicar-dia" onclick="marcarDiaRevisado(this)">Marcar dia como revisado</button>
       </div>
       <div class="table-scroll">
       <table class="carga-table">
@@ -2346,7 +2402,7 @@
             <th class="col-forn">Fornecedor</th>
             <th class="col-carga">NF / Carga / Romaneio</th>
             <th class="col-dpto">Departamento</th>
-            <th class="col-recebido">Recebido</th>
+            <th class="col-recebido">Status</th>
           </tr>
         </thead>
         <tbody>
@@ -2356,15 +2412,15 @@
           <td class="col-carga">NFs 39284 330702 1016518 1016519 1017553 1031037 1031038 1031041</td>
           <td class="col-dpto">PORTATEIS</td>
           <td class="col-recebido">
-            <label class="chk-label">
-              <input type="checkbox" class="chk-recebido" 
-                data-id="9f99efcf579a" data-initial="0"
-                data-cd="PA" data-data="2026-08-17"
-                data-forn="Mondial" data-carga="NFs 39284 330702 1016518 1016519 1017553 1031037 1031038 1031041"
-                onchange="onToggleRecebido(this)">
-              <span>Recebido</span>
-            </label>
-            
+            <select class="status-select status-pendente" data-id="9f99efcf579a" data-status-initial="pendente" data-status-atual="pendente"
+              data-cd="PA" data-data="2026-08-17"
+              data-forn="Mondial" data-carga="NFs 39284 330702 1016518 1016519 1017553 1031037 1031038 1031041"
+              onchange="onStatusChange(this)">
+              <option value="pendente" selected>Pendente</option>
+              <option value="recebido">Recebido</option>
+              <option value="nao_compareceu">Não compareceu</option>
+              <option value="reagendado">Reagendado</option>
+            </select>
           </td>
         </tr>
         </tbody>
@@ -2398,10 +2454,10 @@
 
       <div id="update-status" class="update-status"></div>
 
-      <p class="update-note">Importante: essa atualização só vale enquanto esta página estiver aberta neste
-      navegador — ao fechar ou recarregar, ela volta para os dados com que o arquivo foi gerado. Se houver
-      confirmações "Recebido" ainda não baixadas, baixe-as antes de importar uma nova planilha, senão elas
-      são substituídas pela leitura da nova base (as já confirmadas anteriormente continuam marcadas).</p>
+      <p class="update-note">Importante: essa importação de planilha só vale enquanto esta página estiver aberta
+      neste navegador — ao fechar ou recarregar, a lista de cargas volta para os dados com que o arquivo foi
+      gerado. Os status já salvos (Recebido / Não compareceu / Reagendado) não se perdem — eles ficam gravados
+      no servidor e são reaplicados automaticamente às cargas correspondentes depois da importação.</p>
     </div>
   </div>
 
@@ -2414,12 +2470,12 @@
   <footer>
     Fonte de dados: aba "Retorno Email" da planilha Compras BD (nível carga/fornecedor). Departamentos de acordo com o depara da aba "Dados".
     Este arquivo é gerado automaticamente pelo script gerar_cronograma_cds.py — para atualizar, rode o script novamente com uma versão mais recente da planilha.
-    Marcações de "Recebido" feitas aqui só ficam salvas neste navegador enquanto a página estiver aberta — use o botão "Baixar confirmações" e envie o arquivo para quem gera o cronograma, para que a confirmação vire oficial na próxima atualização.
+    O status de cada carga (Recebido / Não compareceu / Reagendado) é salvo automaticamente e fica visível para qualquer pessoa que abrir esta página, em qualquer computador. O botão "Baixar confirmações" continua disponível como backup manual, caso precise enviar um retrato do que mudou nesta sessão.
   </footer>
 </div>
 
 <script>
-window.__CONFIRM_STORE_INICIAL__ = {};
+window.__STATUS_STORE_INICIAL__ = {};
 
 function mostrarCD(cd) {
   document.querySelectorAll('.cd-panel').forEach(function(p) { p.style.display = 'none'; });
@@ -2430,17 +2486,17 @@ function mostrarCD(cd) {
 
 function contarMudancas() {
   var n = 0;
-  document.querySelectorAll('input.chk-recebido').forEach(function(chk) {
-    if (String(chk.checked ? 1 : 0) !== String(chk.dataset.initial)) n++;
+  document.querySelectorAll('select.status-select').forEach(function(sel) {
+    if (sel.value !== sel.dataset.statusInitial) n++;
   });
   document.getElementById('contador-mudancas').textContent = n;
 }
 
 function atualizarContadoresCD(cd) {
   var total = 0, confirmadas = 0;
-  document.querySelectorAll('#panel-' + cd + ' input.chk-recebido').forEach(function(chk) {
+  document.querySelectorAll('#panel-' + cd + ' select.status-select').forEach(function(sel) {
     total++;
-    if (chk.checked) confirmadas++;
+    if (sel.value === 'recebido') confirmadas++;
   });
   var tile = document.getElementById('kpi-confirm-' + cd);
   if (tile) {
@@ -2455,46 +2511,136 @@ function atualizarContadorDia(tr) {
   var span = section.querySelector('.confirm-count');
   if (!span) return;
   var total = parseInt(span.dataset.dayTotal, 10) || 0;
-  var confirmadas = section.querySelectorAll('input.chk-recebido:checked').length;
+  var confirmadas = 0;
+  section.querySelectorAll('select.status-select').forEach(function(sel) {
+    if (sel.value === 'recebido') confirmadas++;
+  });
   span.textContent = confirmadas + '/' + total + ' confirmadas';
 }
 
 function atualizarContadorGeral() {
-  var total = document.querySelectorAll('input.chk-recebido').length;
-  var confirmadas = document.querySelectorAll('input.chk-recebido:checked').length;
+  var total = 0, confirmadas = 0;
+  document.querySelectorAll('select.status-select').forEach(function(sel) {
+    total++;
+    if (sel.value === 'recebido') confirmadas++;
+  });
   var el = document.getElementById('kpi-confirm-total');
   if (el) el.textContent = confirmadas;
 }
 
-function onToggleRecebido(chk) {
-  var tr = chk.closest('tr');
-  if (tr) tr.classList.toggle('row-confirmada', chk.checked);
-  atualizarContadoresCD(chk.dataset.cd);
+function aplicarStatusAoSelect(sel, status) {
+  var tr = sel.closest('tr');
+  sel.value = status;
+  sel.className = 'status-select status-' + status;
+  if (tr) tr.classList.toggle('row-confirmada', status === 'recebido');
+  atualizarContadoresCD(sel.dataset.cd);
   if (tr) atualizarContadorDia(tr);
   atualizarContadorGeral();
   contarMudancas();
 }
 
+function onStatusChange(sel) {
+  var statusAnterior = sel.dataset.statusAtual;
+  var novoStatus = sel.value;
+  var nome = (document.getElementById('nome-responsavel').value || '').trim();
+  aplicarStatusAoSelect(sel, novoStatus);
+  fetch('/api/state', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({type: 'carga', id: sel.dataset.id, status: novoStatus, status_por: nome || null})
+  })
+    .then(function(resp) { return resp.json().then(function(data) { return {ok: resp.ok, data: data}; }); })
+    .then(function(res) {
+      if (!res.ok || (res.data && res.data.error)) throw new Error((res.data && res.data.error) || ('HTTP ' + res.status));
+      sel.dataset.statusAtual = novoStatus;
+      if (novoStatus === 'pendente') delete statusStore[sel.dataset.id];
+      else statusStore[sel.dataset.id] = {status: novoStatus, status_por: nome || null, status_em: new Date().toISOString()};
+    })
+    .catch(function(err) {
+      console.error(err);
+      alert('Não foi possível salvar esse status agora (verifique sua conexão). A tela volta para o valor anterior.');
+      aplicarStatusAoSelect(sel, statusAnterior);
+    });
+}
+
+function diaKeyDeSecao(section) {
+  var sel = section.querySelector('select.status-select');
+  if (!sel) return null;
+  return sel.dataset.cd + '|' + sel.dataset.data;
+}
+
+function fmtDataHoraCurta(iso) {
+  var d = new Date(iso);
+  if (isNaN(d.getTime())) return '';
+  return String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0') + ' ' +
+    String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+}
+
+function aplicarSeloRevisado(section, info) {
+  var titulo = section.querySelector('.day-title');
+  var btn = section.querySelector('.btn-aplicar-dia');
+  if (!titulo) return;
+  var badgeAtual = titulo.querySelector('.badge-revisado');
+  if (badgeAtual) badgeAtual.remove();
+  if (info && info.revisado) {
+    section.classList.add('day-revisado');
+    var quando = info.revisado_em ? fmtDataHoraCurta(info.revisado_em) : '';
+    var span = document.createElement('span');
+    span.className = 'badge badge-revisado';
+    span.textContent = 'Revisado' + (info.revisado_por ? ' por ' + info.revisado_por : '') + (quando ? ' às ' + quando : '');
+    titulo.appendChild(span);
+    if (btn) { btn.textContent = 'Revisão salva ✓ (clique para desfazer)'; btn.classList.add('btn-revisado-ativo'); }
+  } else {
+    section.classList.remove('day-revisado');
+    if (btn) { btn.textContent = 'Marcar dia como revisado'; btn.classList.remove('btn-revisado-ativo'); }
+  }
+}
+
+function marcarDiaRevisado(btn) {
+  var section = btn.closest('.day-block');
+  if (!section) return;
+  var key = diaKeyDeSecao(section);
+  var estadoAnterior = diaRevisadoStore[key] || null;
+  var novoRevisado = !section.classList.contains('day-revisado');
+  var nome = (document.getElementById('nome-responsavel').value || '').trim();
+  var novoInfo = novoRevisado ? {revisado: true, revisado_por: nome || null, revisado_em: new Date().toISOString()} : null;
+  aplicarSeloRevisado(section, novoInfo);
+  fetch('/api/state', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({type: 'dia', key: key, revisado: novoRevisado, revisado_por: nome || null})
+  })
+    .then(function(resp) { return resp.json().then(function(data) { return {ok: resp.ok, data: data}; }); })
+    .then(function(res) {
+      if (!res.ok || (res.data && res.data.error)) throw new Error((res.data && res.data.error) || ('HTTP ' + res.status));
+      if (novoInfo) diaRevisadoStore[key] = novoInfo; else delete diaRevisadoStore[key];
+    })
+    .catch(function(err) {
+      console.error(err);
+      alert('Não foi possível salvar essa revisão agora (verifique sua conexão). A tela volta para o valor anterior.');
+      aplicarSeloRevisado(section, estadoAnterior);
+    });
+}
+
 function baixarConfirmacoes() {
   var nome = document.getElementById('nome-responsavel').value.trim();
   var mudancas = [];
-  document.querySelectorAll('input.chk-recebido').forEach(function(chk) {
-    var atual = chk.checked ? 1 : 0;
-    if (String(atual) !== String(chk.dataset.initial)) {
+  document.querySelectorAll('select.status-select').forEach(function(sel) {
+    if (sel.value !== sel.dataset.statusInitial) {
       mudancas.push({
-        id: chk.dataset.id,
-        cd: chk.dataset.cd,
-        data: chk.dataset.data,
-        fornecedor: chk.dataset.forn,
-        carga: chk.dataset.carga,
-        confirmado: atual === 1,
-        confirmado_em: new Date().toISOString(),
-        confirmado_por: nome || null
+        id: sel.dataset.id,
+        cd: sel.dataset.cd,
+        data: sel.dataset.data,
+        fornecedor: sel.dataset.forn,
+        carga: sel.dataset.carga,
+        status: sel.value,
+        status_em: new Date().toISOString(),
+        status_por: nome || null
       });
     }
   });
   if (mudancas.length === 0) {
-    alert('Nenhuma alteração para exportar ainda. Marque ao menos uma carga como recebida (ou desmarque uma confirmação existente) antes de baixar.');
+    alert('Nenhuma alteração para exportar ainda. Marque o status de ao menos uma carga (ou volte uma marcação existente para "Pendente") antes de baixar.');
     return;
   }
   var blob = new Blob([JSON.stringify(mudancas, null, 2)], {type: 'application/json'});
@@ -2523,7 +2669,8 @@ var CD_DEPARA_JS = {
 var CD_ORDEM_JS = ['GO', 'MA', 'PA'];
 var MESES_PT_JS = ["janeiro","fevereiro","março","abril","maio","junho","julho","agosto","setembro","outubro","novembro","dezembro"];
 var DIAS_SEMANA_PT_JS = ["segunda-feira","terça-feira","quarta-feira","quinta-feira","sexta-feira","sábado","domingo"];
-var confirmStore = Object.assign({}, window.__CONFIRM_STORE_INICIAL__ || {});
+var statusStore = Object.assign({}, window.__STATUS_STORE_INICIAL__ || {});
+var diaRevisadoStore = {};
 
 function pad2(n) { return String(n).padStart(2, '0'); }
 
@@ -2657,10 +2804,10 @@ function parseWorkbookToCargasJS(wb, mesInicio) {
 
 function montarEstruturaJS(cargas, hoje) {
   cargas.forEach(function(c) {
-    var entry = confirmStore[c.id];
-    c.confirmado = !!(entry && entry.confirmado);
-    c.confirmado_por = entry ? entry.confirmado_por : null;
-    c.confirmado_em = entry ? entry.confirmado_em : null;
+    var entry = statusStore[c.id];
+    c.status = entry ? entry.status : 'pendente';
+    c.status_por = entry ? entry.status_por : null;
+    c.status_em = entry ? entry.status_em : null;
   });
   var porCd = {};
   CD_ORDEM_JS.forEach(function(uf) { porCd[uf] = {}; });
@@ -2677,7 +2824,7 @@ function montarEstruturaJS(cargas, hoje) {
     datasIso.forEach(function(k) {
       porCd[uf][k].forEach(function(c) {
         totalCargas++;
-        if (c.confirmado) totalConfirmadas++;
+        if (c.status === 'recebido') totalConfirmadas++;
         fornecedores[c.fornecedor] = true;
       });
     });
@@ -2692,7 +2839,7 @@ function montarEstruturaJS(cargas, hoje) {
       return {
         data: lst[0].data, dataIso: k, cargas: lst,
         total_cargas: lst.length,
-        total_confirmadas: lst.filter(function(c) { return c.confirmado; }).length
+        total_confirmadas: lst.filter(function(c) { return c.status === 'recebido'; }).length
       };
     });
     estrutura[uf] = {
@@ -2704,30 +2851,36 @@ function montarEstruturaJS(cargas, hoje) {
   return estrutura;
 }
 
+var STATUS_OPCOES_JS = [
+  ['pendente', 'Pendente'],
+  ['recebido', 'Recebido'],
+  ['nao_compareceu', 'Não compareceu'],
+  ['reagendado', 'Reagendado']
+];
+
 function renderTabelaDiaJS(dia, uf) {
   return dia.cargas.map(function(c) {
-    var checked = c.confirmado ? 'checked' : '';
-    var initial = c.confirmado ? '1' : '0';
-    var rowCls = c.confirmado ? 'row-confirmada' : '';
+    var status = c.status || 'pendente';
+    var rowCls = status === 'recebido' ? 'row-confirmada' : '';
     var nota = '';
-    if (c.confirmado && (c.confirmado_por || c.confirmado_em)) {
-      var quem = c.confirmado_por ? escHtml(c.confirmado_por) : 'responsável do CD';
-      var quando = c.confirmado_em ? escHtml(String(c.confirmado_em).slice(0, 10)) : '';
+    if (status !== 'pendente' && (c.status_por || c.status_em)) {
+      var quem = c.status_por ? escHtml(c.status_por) : 'responsável do CD';
+      var quando = c.status_em ? escHtml(String(c.status_em).slice(0, 10)) : '';
       nota = '<div class="confirm-nota">por ' + quem + (quando ? ' em ' + quando : '') + '</div>';
     }
+    var opcoesHtml = STATUS_OPCOES_JS.map(function(opt) {
+      return '<option value="' + opt[0] + '"' + (opt[0] === status ? ' selected' : '') + '>' + opt[1] + '</option>';
+    }).join('');
     return '\n        <tr class="' + rowCls + '" data-row-id="' + escHtml(c.id) + '">' +
       '\n          <td class="col-forn">' + escHtml(c.fornecedor) + '</td>' +
       '\n          <td class="col-carga">' + escHtml(c.carga) + '</td>' +
       '\n          <td class="col-dpto">' + escHtml(c.dpto) + '</td>' +
       '\n          <td class="col-recebido">' +
-      '\n            <label class="chk-label">' +
-      '\n              <input type="checkbox" class="chk-recebido" ' + checked +
-      '\n                data-id="' + escHtml(c.id) + '" data-initial="' + initial + '"' +
-      '\n                data-cd="' + escHtml(uf) + '" data-data="' + escHtml(c.dataIso) + '"' +
-      '\n                data-forn="' + escHtml(c.fornecedor) + '" data-carga="' + escHtml(c.carga) + '"' +
-      '\n                onchange="onToggleRecebido(this)">' +
-      '\n              <span>Recebido</span>' +
-      '\n            </label>' +
+      '\n            <select class="status-select status-' + status + '" data-id="' + escHtml(c.id) + '" data-status-initial="' + status + '" data-status-atual="' + status + '"' +
+      '\n              data-cd="' + escHtml(uf) + '" data-data="' + escHtml(c.dataIso) + '"' +
+      '\n              data-forn="' + escHtml(c.fornecedor) + '" data-carga="' + escHtml(c.carga) + '"' +
+      '\n              onchange="onStatusChange(this)">' + opcoesHtml +
+      '\n            </select>' +
       '\n            ' + nota +
       '\n          </td>' +
       '\n        </tr>';
@@ -2749,6 +2902,7 @@ function renderDiaJS(dia, uf, hoje) {
     '\n          <span class="dot">&middot;</span>' +
     '\n          <span>' + dia.total_cargas + ' carga' + (dia.total_cargas !== 1 ? 's' : '') + '</span>' +
     '\n        </div>' +
+    '\n        <button type="button" class="btn-aplicar-dia" onclick="marcarDiaRevisado(this)">Marcar dia como revisado</button>' +
     '\n      </div>' +
     '\n      <div class="table-scroll">' +
     '\n      <table class="carga-table">' +
@@ -2757,7 +2911,7 @@ function renderDiaJS(dia, uf, hoje) {
     '\n            <th class="col-forn">Fornecedor</th>' +
     '\n            <th class="col-carga">NF / Carga / Romaneio</th>' +
     '\n            <th class="col-dpto">Departamento</th>' +
-    '\n            <th class="col-recebido">Recebido</th>' +
+    '\n            <th class="col-recebido">Status</th>' +
     '\n          </tr>' +
     '\n        </thead>' +
     '\n        <tbody>' +
@@ -2818,14 +2972,18 @@ function computeHojeEMesInicio() {
   return {hoje: new Date(Date.UTC(y, m, dd)), mesInicio: new Date(Date.UTC(y, m, 1))};
 }
 
+var STATUS_VALIDOS_JS = ['pendente', 'recebido', 'nao_compareceu', 'reagendado'];
+
 function mergeConfirmacoesJS(parsed) {
   var registros = Array.isArray(parsed) ? parsed : Object.keys(parsed).map(function(id) { return Object.assign({id: id}, parsed[id]); });
   registros.forEach(function(r) {
     if (!r || !r.id) return;
-    confirmStore[r.id] = {
-      confirmado: !!r.confirmado,
-      confirmado_por: r.confirmado_por || null,
-      confirmado_em: r.confirmado_em || null
+    var status = r.status || (r.confirmado ? 'recebido' : 'pendente');
+    if (STATUS_VALIDOS_JS.indexOf(status) === -1) status = 'pendente';
+    statusStore[r.id] = {
+      status: status,
+      status_por: r.status_por || r.confirmado_por || null,
+      status_em: r.status_em || r.confirmado_em || null
     };
   });
 }
@@ -2845,6 +3003,7 @@ function aplicarNovosDadosJS(estrutura, meta, hoje, fonteNome) {
   document.getElementById('page-subtitle').textContent =
     'Gerado em ' + geradoEm + ' a partir de "' + fonteNome + '" (importado neste navegador) · Período: ' + fmtDataCurtaJS(meta.mesInicio) + ' em diante · Depara: CD 515 = GO · CD 540 = MA · CD 547 = PA';
   renderAvisosJS(meta);
+  aplicarDiaRevisadoStoreAoDOM();
   contarMudancas();
 }
 
@@ -2890,6 +3049,52 @@ async function processarPlanilha() {
     input.value = now.getFullYear() + '-' + pad2(now.getMonth() + 1) + '-' + pad2(now.getDate());
   }
 })();
+
+// ---------------------------------------------------------------------------
+// Sincronização com o servidor (status por carga + selo de revisão por dia)
+// ---------------------------------------------------------------------------
+function aplicarStatusStoreAoDOM() {
+  document.querySelectorAll('select.status-select').forEach(function(sel) {
+    var entry = statusStore[sel.dataset.id];
+    var status = entry ? entry.status : 'pendente';
+    sel.dataset.statusInitial = status;
+    sel.dataset.statusAtual = status;
+    aplicarStatusAoSelect(sel, status);
+  });
+}
+
+function aplicarDiaRevisadoStoreAoDOM() {
+  document.querySelectorAll('.day-block').forEach(function(section) {
+    var key = diaKeyDeSecao(section);
+    aplicarSeloRevisado(section, key ? diaRevisadoStore[key] : null);
+  });
+}
+
+function mostrarAvisoSync(msg) {
+  var el = document.getElementById('sync-status');
+  if (!el) return;
+  el.textContent = msg;
+  el.style.display = msg ? 'block' : 'none';
+}
+
+function carregarEstadoSalvo() {
+  return fetch('/api/state')
+    .then(function(resp) { return resp.json().then(function(data) { return {ok: resp.ok, status: resp.status, data: data}; }); })
+    .then(function(res) {
+      if (!res.ok || (res.data && res.data.error)) throw new Error((res.data && res.data.error) || ('HTTP ' + res.status));
+      statusStore = Object.assign({}, res.data.cargas || {});
+      diaRevisadoStore = Object.assign({}, res.data.dias || {});
+      aplicarStatusStoreAoDOM();
+      aplicarDiaRevisadoStoreAoDOM();
+      mostrarAvisoSync('');
+    })
+    .catch(function(err) {
+      console.error(err);
+      mostrarAvisoSync('Não foi possível carregar as confirmações salvas — os dados abaixo podem estar desatualizados, e novas alterações podem não ser salvas até a conexão voltar.');
+    });
+}
+
+carregarEstadoSalvo();
 </script>
 </body>
 </html>

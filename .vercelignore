@@ -1,0 +1,5 @@
+dev_server.py
+scripts/
+.env
+.env.example
+.env.local
