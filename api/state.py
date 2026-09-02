@@ -1,13 +1,15 @@
 """Vercel Function (Python) — GET/POST /api/state.
 
 Arquivo único e autocontido (sem imports entre arquivos de /api): a Vercel
-não garante que `import _store` entre arquivos de /api funcione no runtime
-Python baseado em BaseHTTPRequestHandler, então toda a lógica de acesso ao
-Redis (Upstash, via REST) e o roteamento GET/POST vivem aqui.
+não garante que imports entre arquivos de /api funcionem no runtime Python
+baseado em BaseHTTPRequestHandler (confirmado na prática), então toda a
+lógica de acesso ao banco (Supabase, via REST/PostgREST) e o roteamento
+GET/POST vivem aqui.
 
-GET  -> {"cargas": {id: {status, status_por, status_em}}, "dias": {key: {revisado, revisado_por, revisado_em}}}
-POST {"type": "carga", "id", "status", "status_por"} -> grava status da carga
-POST {"type": "dia", "key", "revisado", "revisado_por"} -> grava selo de revisão do dia
+GET  -> {"cargas": [{id,cd,data,dpto,fornecedor,carga,status,status_por,status_em}, ...],
+         "dias": {"<cd>|<data-iso>": {revisado, revisado_por, revisado_em}, ...}}
+POST {"type": "carga", "id", "status", "status_por"} -> atualiza o status de uma carga já existente
+POST {"type": "dia", "key", "revisado", "revisado_por"} -> grava o selo de revisão do dia
 """
 import datetime
 import json
@@ -18,8 +20,6 @@ import urllib.request
 from http.server import BaseHTTPRequestHandler
 
 STATUS_VALUES = {"pendente", "recebido", "nao_compareceu", "reagendado"}
-CARGAS_KEY = "cargas"
-DIAS_KEY = "dias"
 
 
 class StoreError(Exception):
@@ -31,63 +31,48 @@ def _now_iso():
 
 
 def _credenciais():
-    # A integração "Upstash for Redis" da Vercel usa o prefixo KV_; uma conta
-    # Upstash própria (fora da Vercel) usa UPSTASH_REDIS_REST_*. Aceita os dois.
-    base_url = os.environ.get("KV_REST_API_URL") or os.environ.get("UPSTASH_REDIS_REST_URL")
-    token = os.environ.get("KV_REST_API_TOKEN") or os.environ.get("UPSTASH_REDIS_REST_TOKEN")
-    if not base_url or not token:
-        raise StoreError(
-            "Credenciais do Redis não configuradas "
-            "(esperado KV_REST_API_URL/KV_REST_API_TOKEN ou UPSTASH_REDIS_REST_URL/UPSTASH_REDIS_REST_TOKEN)"
-        )
-    return base_url, token
+    url = os.environ.get("SUPABASE_URL")
+    key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+    if not url or not key:
+        raise StoreError("SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY não configurados")
+    return url.rstrip("/"), key
 
 
-def _upstash_call(path_parts, body=None):
-    # API REST do Upstash: argumentos do comando vão na URL (path segments),
-    # e o ÚLTIMO argumento pode ir no corpo do POST — evita ter que fazer
-    # URL-encode do JSON inteiro do valor.
-    base_url, token = _credenciais()
-    path = "/".join(urllib.parse.quote(str(p), safe="") for p in path_parts)
-    url = base_url.rstrip("/") + "/" + path
-    data = body.encode("utf-8") if body is not None else None
-    req = urllib.request.Request(
-        url, data=data, method="POST", headers={"Authorization": "Bearer " + token}
-    )
+def _supabase_call(method, table, query="", body=None, prefer=None):
+    base_url, key = _credenciais()
+    url = base_url + "/rest/v1/" + table + (("?" + query) if query else "")
+    data = json.dumps(body).encode("utf-8") if body is not None else None
+    headers = {
+        "apikey": key,
+        "Authorization": "Bearer " + key,
+        "Content-Type": "application/json",
+    }
+    if prefer:
+        headers["Prefer"] = prefer
+    req = urllib.request.Request(url, data=data, method=method, headers=headers)
     try:
         with urllib.request.urlopen(req, timeout=10) as resp:
-            payload = json.loads(resp.read().decode("utf-8"))
+            raw = resp.read()
     except urllib.error.HTTPError as e:
-        raise StoreError("Upstash HTTP %s: %s" % (e.code, e.read().decode("utf-8", "replace")))
+        raise StoreError("Supabase HTTP %s: %s" % (e.code, e.read().decode("utf-8", "replace")))
     except urllib.error.URLError as e:
-        raise StoreError("Upstash indisponível: %s" % e)
-    if isinstance(payload, dict) and payload.get("error"):
-        raise StoreError("Upstash: %s" % payload["error"])
-    return payload.get("result") if isinstance(payload, dict) else payload
-
-
-def _hgetall(key):
-    flat = _upstash_call(["hgetall", key]) or []
-    out = {}
-    for i in range(0, len(flat), 2):
-        field, raw = flat[i], flat[i + 1]
-        try:
-            out[field] = json.loads(raw)
-        except (ValueError, TypeError):
-            out[field] = raw
-    return out
-
-
-def _hset(key, field, value_obj):
-    _upstash_call(["hset", key, field], body=json.dumps(value_obj))
-
-
-def _hdel(key, field):
-    _upstash_call(["hdel", key, field])
+        raise StoreError("Supabase indisponível: %s" % e)
+    if not raw:
+        return None
+    return json.loads(raw.decode("utf-8"))
 
 
 def get_state():
-    return {"cargas": _hgetall(CARGAS_KEY), "dias": _hgetall(DIAS_KEY)}
+    cargas = _supabase_call("GET", "cargas", query="select=*") or []
+    dias_lista = _supabase_call("GET", "dias_revisao", query="select=*") or []
+    dias = {}
+    for d in dias_lista:
+        dias[d["chave"]] = {
+            "revisado": d["revisado"],
+            "revisado_por": d.get("revisado_por"),
+            "revisado_em": d.get("revisado_em"),
+        }
+    return {"cargas": cargas, "dias": dias}
 
 
 def save_carga(carga_id, status, status_por):
@@ -95,23 +80,37 @@ def save_carga(carga_id, status, status_por):
         raise StoreError("id é obrigatório")
     if status not in STATUS_VALUES:
         raise StoreError("status inválido: %r" % status)
-    if status == "pendente":
-        _hdel(CARGAS_KEY, carga_id)
-        return None
-    value = {"status": status, "status_por": status_por or None, "status_em": _now_iso()}
-    _hset(CARGAS_KEY, carga_id, value)
-    return value
+    valores = {
+        "status": status,
+        "status_por": status_por if status != "pendente" else None,
+        "status_em": _now_iso() if status != "pendente" else None,
+    }
+    query = "id=eq." + urllib.parse.quote(carga_id, safe="")
+    resultado = _supabase_call("PATCH", "cargas", query=query, body=valores, prefer="return=representation")
+    if not resultado:
+        raise StoreError("carga '%s' não encontrada (precisa existir antes, via sincronização)" % carga_id)
+    return resultado[0]
 
 
 def save_dia(key, revisado, revisado_por):
     if not key:
         raise StoreError("key é obrigatório")
-    if not revisado:
-        _hdel(DIAS_KEY, key)
-        return None
-    value = {"revisado": True, "revisado_por": revisado_por or None, "revisado_em": _now_iso()}
-    _hset(DIAS_KEY, key, value)
-    return value
+    cd, _, data_iso = key.partition("|")
+    registro = {
+        "chave": key,
+        "cd": cd,
+        "data": data_iso,
+        "revisado": bool(revisado),
+        "revisado_por": revisado_por if revisado else None,
+        "revisado_em": _now_iso() if revisado else None,
+    }
+    _supabase_call(
+        "POST", "dias_revisao",
+        query="on_conflict=chave",
+        body=[registro],
+        prefer="resolution=merge-duplicates,return=minimal",
+    )
+    return registro
 
 
 def handle_get():

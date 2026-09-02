@@ -1,5 +1,7 @@
 dev_server.py
 scripts/
+supabase/
+sync_cronograma.log
 .env
 .env.example
 .env.local
