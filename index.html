@@ -39,9 +39,10 @@
     padding: 24px;
   }
   .wrap { max-width: 1080px; margin: 0 auto; }
-  header.page-head { margin-bottom: 20px; }
-  header.page-head h1 { font-size: 22px; margin: 0 0 4px; }
+  header.page-head { position: relative; margin-bottom: 20px; }
+  header.page-head h1 { font-size: 22px; margin: 0 0 4px; padding-right: 90px; }
   header.page-head p { margin: 0; color: var(--text-secondary); font-size: 13.5px; }
+  .version-tag { position: absolute; top: 0; right: 0; font-size: 11px; color: var(--text-muted); }
   .overview {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
@@ -168,6 +169,7 @@
 <body>
 <div class="wrap">
   <header class="page-head">
+    <span id="app-version" class="version-tag"></span>
     <h1>Cronograma de Recebimento — Centros de Distribuição</h1>
     <p id="page-subtitle">Carregando cronograma…</p>
     <p id="sync-status" class="update-note" style="display:none; margin: 6px 0 0;"></p>
@@ -863,6 +865,12 @@ function mostrarAvisoSync(msg) {
   el.style.display = msg ? 'block' : 'none';
 }
 
+function mostrarVersaoJS(versao) {
+  var el = document.getElementById('app-version');
+  if (!el || !versao) return;
+  el.textContent = versao.commit ? ('versão ' + versao.commit) : 'ambiente local';
+}
+
 function carregarEstadoSalvo() {
   return fetch('/api/state')
     .then(function(resp) { return resp.json().then(function(data) { return {ok: resp.ok, status: resp.status, data: data}; }); })
@@ -891,6 +899,7 @@ function carregarEstadoSalvo() {
       var estrutura = montarEstruturaJS(cargasParaExibir, ref.hoje);
       aplicarCronogramaBancoJS(estrutura, ref.hoje, ultimaAtualizacao);
       mostrarAvisoSync('');
+      mostrarVersaoJS(res.data.versao);
     })
     .catch(function(err) {
       console.error(err);

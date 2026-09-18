@@ -62,6 +62,15 @@ def _supabase_call(method, table, query="", body=None, prefer=None):
     return json.loads(raw.decode("utf-8"))
 
 
+def get_versao():
+    """Vercel expõe VERCEL_GIT_COMMIT_SHA nas Functions quando o deploy vem
+    do GitHub; em dev_server.py essa variável não existe."""
+    commit = os.environ.get("VERCEL_GIT_COMMIT_SHA")
+    if not commit:
+        return {"commit": None, "ambiente": "local"}
+    return {"commit": commit[:7], "ambiente": "produção"}
+
+
 def get_state():
     cargas = _supabase_call("GET", "cargas", query="select=*") or []
     dias_lista = _supabase_call("GET", "dias_revisao", query="select=*") or []
@@ -72,7 +81,7 @@ def get_state():
             "revisado_por": d.get("revisado_por"),
             "revisado_em": d.get("revisado_em"),
         }
-    return {"cargas": cargas, "dias": dias}
+    return {"cargas": cargas, "dias": dias, "versao": get_versao()}
 
 
 def save_carga(carga_id, status, status_por):
