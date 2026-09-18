@@ -110,6 +110,7 @@ def parse_planilha(caminho, mes_inicio):
     i_carga = header.index("NF, CARGA OU ROMANEIO")
 
     cargas, ignoradas_cd = [], {}
+    chaves_sem_data = set()
     ignoradas_sem_data = ignoradas_fora_periodo = 0
 
     for row in rows[1:]:
@@ -131,6 +132,11 @@ def parse_planilha(caminho, mes_inicio):
             data = data_raw
         else:
             ignoradas_sem_data += 1
+            forn_raw = row[i_forn] if i_forn < len(row) else None
+            fornecedor = (str(forn_raw).strip() if forn_raw is not None else "") or "Fornecedor não informado"
+            carga_raw = row[i_carga] if i_carga < len(row) else None
+            carga_txt = (str(carga_raw).strip() if carga_raw is not None else "") or "-"
+            chaves_sem_data.add((cd, fornecedor, carga_txt))
             continue
         if data < mes_inicio:
             ignoradas_fora_periodo += 1
@@ -161,7 +167,7 @@ def parse_planilha(caminho, mes_inicio):
         "Planilha lida: %d carga(s) válidas, %d ignorada(s) sem data, %d fora do período, CDs ignorados: %s",
         len(cargas), ignoradas_sem_data, ignoradas_fora_periodo, ignoradas_cd,
     )
-    return cargas
+    return cargas, chaves_sem_data
 
 
 def _supabase_request(method, url, service_role_key, body=None, extra_headers=None):
@@ -228,6 +234,43 @@ def sync_supabase(cargas, supabase_url, service_role_key):
         log.info("%d carga(s) existente(s) atualizada(s) (agenda apenas, status preservado).", len(existentes))
 
 
+def limpar_orfas_sem_data(chaves_sem_data, supabase_url, service_role_key):
+    """Remove do Supabase cargas cuja linha na planilha perdeu a data (CD e
+    fornecedor/carga continuam lá, mas a coluna DATA ficou vazia) e que
+    ainda estao 'pendente' - carga sem data nao deve aparecer dentro de
+    nenhum dia. Cargas ja confirmadas (recebido/nao_compareceu/reagendado)
+    NUNCA sao removidas por aqui: ficam como historico mesmo que a linha
+    da planilha tenha sido limpa."""
+    if not chaves_sem_data:
+        return
+    base = supabase_url.rstrip("/")
+    existentes = _supabase_request(
+        "GET", f"{base}/rest/v1/cargas?select=id,cd,fornecedor,carga&status=eq.pendente",
+        service_role_key,
+    ) or []
+    por_chave = {}
+    for c in existentes:
+        por_chave.setdefault((c["cd"], c["fornecedor"], c["carga"]), []).append(c["id"])
+
+    ids_remover = []
+    for chave in chaves_sem_data:
+        ids_remover.extend(por_chave.get(chave, []))
+    if not ids_remover:
+        return
+
+    for i in range(0, len(ids_remover), 200):
+        lote = ids_remover[i:i + 200]
+        filtro = "id=in.(" + ",".join(urllib.parse.quote(x, safe="") for x in lote) + ")"
+        _supabase_request(
+            "DELETE", f"{base}/rest/v1/cargas?{filtro}", service_role_key,
+            extra_headers={"Prefer": "return=minimal"},
+        )
+    log.info(
+        "%d carga(s) pendente(s) removida(s) do Supabase (perderam a data na planilha).",
+        len(ids_remover),
+    )
+
+
 def main():
     load_env_file(os.path.join(BASE_DIR, ".env"))
     supabase_url = os.environ.get("SUPABASE_URL")
@@ -241,8 +284,9 @@ def main():
     mes_inicio = hoje.replace(day=1)
 
     try:
-        cargas = parse_planilha(caminho_planilha, mes_inicio)
+        cargas, chaves_sem_data = parse_planilha(caminho_planilha, mes_inicio)
         sync_supabase(cargas, supabase_url, service_role_key)
+        limpar_orfas_sem_data(chaves_sem_data, supabase_url, service_role_key)
     except Exception:
         log.exception("Falha ao sincronizar o cronograma.")
         sys.exit(1)
