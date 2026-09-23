@@ -19,11 +19,62 @@ import urllib.parse
 import urllib.request
 from http.server import BaseHTTPRequestHandler
 
+import jwt
+from jwt.algorithms import RSAAlgorithm
+
 STATUS_VALUES = {"pendente", "recebido", "nao_compareceu", "reagendado"}
+
+# Derivado da publishable key do Clerk (pk_test_<base64 do frontend-api>).
+# Login (Clerk): quem pode acessar é restrito por e-mail (@novomundo.com.br)
+# la no dashboard do Clerk, nao aqui — aqui so validamos se a sessao e
+# legitima (assinatura + expiracao) usando as chaves publicas do JWKS.
+CLERK_FRONTEND_API = "robust-zebra-3172.clerk.accounts.dev"
+_jwks_cache = {"chaves": None, "buscado_em": 0.0}
 
 
 class StoreError(Exception):
     pass
+
+
+class AuthError(Exception):
+    pass
+
+
+def _jwks():
+    agora = datetime.datetime.utcnow().timestamp()
+    if _jwks_cache["chaves"] is None or (agora - _jwks_cache["buscado_em"]) > 3600:
+        url = "https://" + CLERK_FRONTEND_API + "/.well-known/jwks.json"
+        with urllib.request.urlopen(url, timeout=10) as resp:
+            _jwks_cache["chaves"] = json.loads(resp.read().decode("utf-8"))["keys"]
+        _jwks_cache["buscado_em"] = agora
+    return _jwks_cache["chaves"]
+
+
+def _verificar_sessao(auth_header):
+    """Valida o token de sessão (JWT) do Clerk enviado no header
+    Authorization: Bearer <token>. Verificação "networkless": usa só as
+    chaves públicas do JWKS do Clerk, sem chamar a API deles a cada request."""
+    if not auth_header or not auth_header.startswith("Bearer "):
+        raise AuthError("Faça login para acessar.")
+    token = auth_header[len("Bearer "):].strip()
+    try:
+        cabecalho = jwt.get_unverified_header(token)
+    except jwt.exceptions.InvalidTokenError:
+        raise AuthError("Sessão inválida.")
+    chave_publica = None
+    for jwk in _jwks():
+        if jwk.get("kid") == cabecalho.get("kid"):
+            chave_publica = RSAAlgorithm.from_jwk(json.dumps(jwk))
+            break
+    if chave_publica is None:
+        raise AuthError("Sessão inválida (chave não reconhecida).")
+    try:
+        return jwt.decode(
+            token, key=chave_publica, algorithms=["RS256"],
+            issuer="https://" + CLERK_FRONTEND_API,
+        )
+    except jwt.exceptions.InvalidTokenError:
+        raise AuthError("Sessão expirada ou inválida. Faça login novamente.")
 
 
 def _now_iso():
@@ -122,14 +173,22 @@ def save_dia(key, revisado, revisado_por):
     return registro
 
 
-def handle_get():
+def handle_get(auth_header):
+    try:
+        _verificar_sessao(auth_header)
+    except AuthError as e:
+        return 401, {"error": str(e)}
     try:
         return 200, get_state()
     except StoreError as e:
         return 500, {"error": str(e)}
 
 
-def handle_post(body):
+def handle_post(body, auth_header):
+    try:
+        _verificar_sessao(auth_header)
+    except AuthError as e:
+        return 401, {"error": str(e)}
     tipo = body.get("type")
     try:
         if tipo == "carga":
@@ -159,7 +218,7 @@ class handler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def do_GET(self):
-        code, payload = handle_get()
+        code, payload = handle_get(self.headers.get("Authorization"))
         self._send_json(code, payload)
 
     def do_POST(self):
@@ -170,5 +229,5 @@ class handler(BaseHTTPRequestHandler):
         except ValueError:
             self._send_json(400, {"error": "JSON inválido no corpo da requisição"})
             return
-        code, payload = handle_post(body)
+        code, payload = handle_post(body, self.headers.get("Authorization"))
         self._send_json(code, payload)

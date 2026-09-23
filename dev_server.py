@@ -49,7 +49,7 @@ class DevHandler(SimpleHTTPRequestHandler):
 
     def do_GET(self):
         if self.path == "/api/state":
-            code, payload = state.handle_get()
+            code, payload = state.handle_get(self.headers.get("Authorization"))
             self._send_json(code, payload)
             return
         super().do_GET()
@@ -65,7 +65,7 @@ class DevHandler(SimpleHTTPRequestHandler):
         except ValueError:
             self._send_json(400, {"error": "JSON inválido no corpo da requisição"})
             return
-        code, payload = state.handle_post(body)
+        code, payload = state.handle_post(body, self.headers.get("Authorization"))
         self._send_json(code, payload)
 
 

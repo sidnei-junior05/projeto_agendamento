@@ -5,6 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Cronograma de Recebimento — Centros de Distribuição</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script
+  async
+  crossorigin="anonymous"
+  data-clerk-publishable-key="pk_test_cm9idXN0LXplYnJhLTMxNzIuY2xlcmsuYWNjb3VudHMuZGV2JA"
+  src="https://robust-zebra-3172.clerk.accounts.dev/npm/@clerk/clerk-js@5/dist/clerk.browser.js"
+  type="text/javascript"
+></script>
 <style>
   :root {
     color-scheme: light;
@@ -51,6 +58,15 @@
     background-image: linear-gradient(rgba(13,13,13,0.30), rgba(13,13,13,0.30)), url('img/fundo-cd-novomundo.jpg');
   }
   .wrap { max-width: 1080px; margin: 0 auto; }
+  #auth-gate {
+    display: none; max-width: 420px; margin: 60px auto; padding: 28px 26px;
+    background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px;
+  }
+  .auth-info { display: flex; align-items: center; gap: 8px; }
+  #btn-sair {
+    font: inherit; font-size: 11px; color: var(--text-muted); background: none; border: none;
+    text-decoration: underline; cursor: pointer; padding: 0;
+  }
   header.page-head { position: relative; margin-bottom: 20px; }
   header.page-head h1 { font-size: 22px; margin: 0 0 4px; padding-right: 230px; }
   header.page-head p { margin: 0; color: var(--text-secondary); font-size: 13.5px; }
@@ -183,9 +199,16 @@
 </style>
 </head>
 <body>
-<div class="wrap">
+<div id="auth-gate">
+  <div id="clerk-sign-in"></div>
+</div>
+<div class="wrap" id="app-shell" style="display:none">
   <header class="page-head">
     <div class="header-actions">
+      <div class="auth-info">
+        <span id="quem-logado" class="version-tag"></span>
+        <button type="button" id="btn-sair" onclick="Clerk.signOut()">Sair</button>
+      </div>
       <span id="app-version" class="version-tag"></span>
       <div class="confirm-actions">
         <input type="text" id="nome-responsavel" placeholder="Seu nome (opcional)">
@@ -340,12 +363,7 @@ function onStatusChange(sel) {
   var novoStatus = sel.value;
   var nome = (document.getElementById('nome-responsavel').value || '').trim();
   aplicarStatusAoSelect(sel, novoStatus);
-  fetch('/api/state', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({type: 'carga', id: sel.dataset.id, status: novoStatus, status_por: nome || null})
-  })
-    .then(function(resp) { return resp.json().then(function(data) { return {ok: resp.ok, data: data}; }); })
+  chamarApi({type: 'carga', id: sel.dataset.id, status: novoStatus, status_por: nome || null})
     .then(function(res) {
       if (!res.ok || (res.data && res.data.error)) throw new Error((res.data && res.data.error) || ('HTTP ' + res.status));
       sel.dataset.statusAtual = novoStatus;
@@ -398,15 +416,10 @@ function marcarDiaRevisado(btn) {
   var key = diaKeyDeSecao(section);
   var estadoAnterior = diaRevisadoStore[key] || null;
   var novoRevisado = !section.classList.contains('day-revisado');
-  var nome = (document.getElementById('nome-responsavel').value || '').trim();
-  var novoInfo = novoRevisado ? {revisado: true, revisado_por: nome || null, revisado_em: new Date().toISOString()} : null;
+  var nome = (Clerk.user && Clerk.user.primaryEmailAddress && Clerk.user.primaryEmailAddress.emailAddress) || null;
+  var novoInfo = novoRevisado ? {revisado: true, revisado_por: nome, revisado_em: new Date().toISOString()} : null;
   aplicarSeloRevisado(section, novoInfo);
-  fetch('/api/state', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({type: 'dia', key: key, revisado: novoRevisado, revisado_por: nome || null})
-  })
-    .then(function(resp) { return resp.json().then(function(data) { return {ok: resp.ok, data: data}; }); })
+  chamarApi({type: 'dia', key: key, revisado: novoRevisado, revisado_por: nome})
     .then(function(res) {
       if (!res.ok || (res.data && res.data.error)) throw new Error((res.data && res.data.error) || ('HTTP ' + res.status));
       if (novoInfo) diaRevisadoStore[key] = novoInfo; else delete diaRevisadoStore[key];
@@ -883,9 +896,22 @@ function mostrarVersaoJS(versao) {
   el.textContent = versao.commit ? ('versão ' + versao.commit) : 'ambiente local';
 }
 
+function chamarApi(body) {
+  return Clerk.session.getToken().then(function(token) {
+    var opts = {headers: {'Authorization': 'Bearer ' + token}};
+    if (body) {
+      opts.method = 'POST';
+      opts.headers['Content-Type'] = 'application/json';
+      opts.body = JSON.stringify(body);
+    }
+    return fetch('/api/state', opts);
+  }).then(function(resp) {
+    return resp.json().then(function(data) { return {ok: resp.ok, status: resp.status, data: data}; });
+  });
+}
+
 function carregarEstadoSalvo() {
-  return fetch('/api/state')
-    .then(function(resp) { return resp.json().then(function(data) { return {ok: resp.ok, status: resp.status, data: data}; }); })
+  return chamarApi(null)
     .then(function(res) {
       if (!res.ok || (res.data && res.data.error)) throw new Error((res.data && res.data.error) || ('HTTP ' + res.status));
       var registros = res.data.cargas || [];
@@ -923,7 +949,37 @@ function carregarEstadoSalvo() {
     });
 }
 
-carregarEstadoSalvo();
+var appJaMostrado = false;
+var signInJaMontado = false;
+
+function renderAuthJS() {
+  var gate = document.getElementById('auth-gate');
+  var shell = document.getElementById('app-shell');
+  if (Clerk.user) {
+    signInJaMontado = false;
+    gate.style.display = 'none';
+    shell.style.display = '';
+    var quem = document.getElementById('quem-logado');
+    if (quem) quem.textContent = (Clerk.user.primaryEmailAddress && Clerk.user.primaryEmailAddress.emailAddress) || '';
+    if (!appJaMostrado) { appJaMostrado = true; carregarEstadoSalvo(); }
+  } else {
+    appJaMostrado = false;
+    shell.style.display = 'none';
+    gate.style.display = 'block';
+    if (!signInJaMontado) {
+      signInJaMontado = true;
+      document.getElementById('clerk-sign-in').innerHTML = '';
+      Clerk.mountSignIn(document.getElementById('clerk-sign-in'));
+    }
+  }
+}
+
+window.addEventListener('load', function () {
+  Clerk.load().then(function () {
+    Clerk.addListener(renderAuthJS);
+    renderAuthJS();
+  });
+});
 </script>
 </body>
 </html>
